@@ -94,6 +94,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showCommands = true
 		return m, nil
 
+	case "ctrl+m":
+		m.textarea.Reset()
+		m.textarea.SetValue("/model ")
+		m.textarea.Focus()
+		return m, nil
+
 	case "enter":
 		return m.sendPrompt()
 
