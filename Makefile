@@ -39,14 +39,14 @@ package: build-all
 	rm -rf $(DIST_DIR)
 	mkdir -p $(DIST_DIR)
 	# Linux
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-linux-amd64
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-linux-arm64
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-linux-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-linux-amd64
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-linux-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-linux-arm64
 	# Darwin
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-amd64
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-arm64
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-amd64
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-arm64
 	# Windows
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-amd64.exe
-	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-arm64.exe
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-amd64.exe
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-windows-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-arm64.exe
 
 lint:
 	@which golangci-lint >/dev/null 2>&1 || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
