@@ -110,6 +110,12 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 
 	a.logger.Info("prompt received", "session_id", sid, "text_length", len(promptText))
 
+	if a.cfg.APIKey == "" {
+		errMsg := "API key not configured. Set BUBBLECODE_API_KEY env var or create ~/.config/bubblecode/config.json"
+		a.sendText(ctx, params.SessionId, errMsg)
+		return acp.PromptResponse{}, nil
+	}
+
 	ss.conversation.AddUserMessage(promptText)
 
 	if isModelCommand(promptText) {

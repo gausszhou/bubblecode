@@ -47,7 +47,8 @@ func runACPServer(cmd *cobra.Command) error {
 	}
 
 	if cfg.APIKey == "" {
-		return fmt.Errorf("API key not configured: set BUBBLECODE_API_KEY env var or create config at %s", path)
+		logger.Warn("API key not configured, agent will return errors until configured",
+			"hint", "set BUBBLECODE_API_KEY env var or create config at "+path)
 	}
 
 	agentInstance := agent.NewLLMAgent(cfg, logger)
