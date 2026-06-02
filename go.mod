@@ -46,5 +46,3 @@ require (
 	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 )
-
-replace github.com/gausszhou/gruff v0.0.7 => /home/gauss/code/gruff

@@ -49,6 +49,8 @@ github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZ
 github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/gausszhou/bubbleflex v0.0.2 h1:aOi4Ykw1haelIL2SidoM+nVBiyHjXS4aMYDB5ahvfYs=
 github.com/gausszhou/bubbleflex v0.0.2/go.mod h1:bAnA53OXejge13JVFUQ+ya/XFD7M8iO+2Vi26mCCscQ=
+github.com/gausszhou/gruff v0.0.7 h1:j91SsksFKL7AnR9HuMJt4VOMM4jYGYZRwe1KTRL6Uwk=
+github.com/gausszhou/gruff v0.0.7/go.mod h1:6i8gLbrunQWgFSaB3woprU2DL0l4UdlvbyH7VWW3m2Q=
 github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
 github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
