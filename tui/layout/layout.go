@@ -6,7 +6,7 @@ const (
 	InputHeight       = 5
 	StatusBarHeight   = 1
 	SpacingHeight     = 1
-	PaddingHorizontal = 2
+	PaddingHorizontal = 0
 	MinWidth          = 40
 	MinHeight         = 12
 )

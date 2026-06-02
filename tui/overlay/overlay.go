@@ -1,11 +1,16 @@
 package overlay
 
 import (
+	"fmt"
+	"image/color"
+	"regexp"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
+
+var sgrResetRe = regexp.MustCompile(`\x1b\[(0(;\d+)*)?m`)
 
 type Position int
 
@@ -126,4 +131,52 @@ func lines(s string) []string {
 
 func whitespace(length int) string {
 	return strings.Repeat(" ", length)
+}
+
+var (
+	ScrimColor = "rgba(0,0,0,0.5)"
+	DefaultBg  = "#201d1d"
+)
+
+func CompositeMasked(fg, bg string, xPos, yPos Position, xOff, yOff int, mask ...bool) string {
+	enabled := true
+	if len(mask) > 0 {
+		enabled = mask[0]
+	}
+	if !enabled {
+		return Composite(fg, bg, xPos, yPos, xOff, yOff)
+	}
+
+	return Composite(fg, applyScrim(bg), xPos, yPos, xOff, yOff)
+}
+
+func applyScrim(s string) string {
+	c := color.RGBAModel.Convert(lipgloss.Color(ScrimColor)).(color.RGBA)
+	alpha := float64(c.A) / 255
+	if alpha <= 0 {
+		return s
+	}
+
+	dark := lipgloss.Darken(lipgloss.Color(DefaultBg), alpha)
+	bgCode := colorBgCode(dark)
+
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = applyScrimLine(line, bgCode)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func colorBgCode(c color.Color) string {
+	rgba := color.RGBAModel.Convert(c).(color.RGBA)
+	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", rgba.R, rgba.G, rgba.B)
+}
+
+func applyScrimLine(line, bgCode string) string {
+	s := "\x1b[2m" + bgCode + line
+	s = sgrResetRe.ReplaceAllStringFunc(s, func(match string) string {
+		return match + "\x1b[2m" + bgCode
+	})
+	s += "\x1b[22m\x1b[49m"
+	return s
 }
