@@ -88,6 +88,11 @@ main.go → spawns agent.exe subprocess
 - Pin versions in `go.mod`, don't use `latest`
 - Vendor dependencies only if required for offline builds
 
+## Workflow
+
+- All development on `develop` branch. `master` is protected — do NOT push directly.
+- Merge into `master` via PR only.
+
 ## Repo quirks
 
 - `agent/` has its own `package main` — do not import from main app.

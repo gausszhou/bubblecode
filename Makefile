@@ -44,9 +44,9 @@ package: build-all
 	# Darwin
 	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-amd64
 	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-darwin-arm64
-	# Windows (zip)
-	@powershell -Command "Compress-Archive -Path $(BIN_DIR)/$(BINARY_NAME)-windows-amd64.exe -DestinationPath $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.zip -Force"
-	@powershell -Command "Compress-Archive -Path $(BIN_DIR)/$(BINARY_NAME)-windows-arm64.exe -DestinationPath $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-arm64.zip -Force"
+	# Windows
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-amd64.exe
+	tar czf $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-arm64.tar.gz -C $(BIN_DIR) $(BINARY_NAME)-windows-arm64.exe
 
 lint:
 	@which golangci-lint >/dev/null 2>&1 || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
