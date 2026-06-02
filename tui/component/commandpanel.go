@@ -45,6 +45,7 @@ func DefaultCommands() CommandPanel {
 		{Key: "Shift+Enter", Desc: "Newline"},
 		{Key: "Esc Esc", Desc: "Interrupt"},
 		{Key: "Ctrl+P", Desc: "Commands"},
+		{Key: "Ctrl+M", Desc: "Change Model"},
 		{Key: "Ctrl+S", Desc: "Switch Session"},
 		{Key: "Ctrl+N", Desc: "New Session"},
 		{Key: "Ctrl+C", Desc: "Quit"},

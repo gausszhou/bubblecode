@@ -43,12 +43,19 @@ func NewACPClient(events chan<- OutputEvent) *ACPClient {
 	return &ACPClient{Events: events}
 }
 
-func (c *ACPClient) ReadTextFile(ctx context.Context, params acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
-	return acp.ReadTextFileResponse{}, fmt.Errorf("not implemented")
+func (c *ACPClient) ReadTextFile(_ context.Context, params acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
+	data, err := os.ReadFile(params.Path)
+	if err != nil {
+		return acp.ReadTextFileResponse{}, err
+	}
+	return acp.ReadTextFileResponse{Content: string(data)}, nil
 }
 
-func (c *ACPClient) WriteTextFile(ctx context.Context, params acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
-	return acp.WriteTextFileResponse{}, fmt.Errorf("not implemented")
+func (c *ACPClient) WriteTextFile(_ context.Context, params acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
+	if err := os.WriteFile(params.Path, []byte(params.Content), 0644); err != nil {
+		return acp.WriteTextFileResponse{}, err
+	}
+	return acp.WriteTextFileResponse{}, nil
 }
 
 func (c *ACPClient) RequestPermission(ctx context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {

@@ -155,7 +155,7 @@ func (m *Model) renderStatus() string {
 	} else {
 		left = "✓ " + left
 	}
-	right := fmt.Sprintf("%s chars  •  %d ms", comma(m.chars), m.times)
+	right := fmt.Sprintf("%s  •  %s chars  •  %d ms", m.modelName, comma(m.chars), m.times)
 	line := flex.New(flex.Row).
 		JustifyContent(flex.SpaceBetween).
 		Width(m.width-2*layout.PaddingHorizontal).

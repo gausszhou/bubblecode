@@ -19,6 +19,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/gausszhou/bubblecode/agent"
 	"github.com/gausszhou/bubblecode/client"
 	"github.com/gausszhou/bubblecode/tui/component"
 	"github.com/gausszhou/bubblecode/tui/layout"
@@ -77,6 +78,8 @@ type Model struct {
 
 	selecting bool
 	selection *Selection
+
+	modelName string
 }
 
 func newChangeLog() *slog.Logger {
@@ -99,6 +102,13 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 	ta := newTextarea()
 	vp := viewport.New(viewport.WithWidth(layout.GetChatWidth(layout.InitWidth)-1), viewport.WithHeight(layout.InitHeight))
 
+	modelName := "unknown"
+	if p, err := agent.ConfigPath(); err == nil {
+		if cfg, err := agent.LoadConfig(p); err == nil {
+			modelName = cfg.Model
+		}
+	}
+
 	m := &Model{
 		logger:       logger,
 		changeLog:    newChangeLog(),
@@ -113,6 +123,7 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 		chatViewport: vp,
 		statusText:   "Ready",
 		spinner:      component.NewLoading(theme.LoadingSpinner()),
+		modelName:    modelName,
 	}
 	m.changeLog.Info("model created", "status", "ready")
 	return m
