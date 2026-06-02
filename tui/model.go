@@ -300,6 +300,8 @@ func (m *Model) applySelectionHighlight(content string) string {
 		selected := ansi.Cut(lines[i], colStart, colEnd)
 		after := ansi.Cut(lines[i], colEnd, lineWidth)
 
+		selected = strings.ReplaceAll(selected, "\x1b[0m", "\x1b[0m\x1b[7m")
+
 		lines[i] = before + "\x1b[7m" + selected + "\x1b[27m" + after
 	}
 	return strings.Join(lines, "\n")

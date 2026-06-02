@@ -68,11 +68,11 @@ func (m *Model) renderCommandOverlay() string {
 func (m *Model) renderMessages() string {
 	w := m.chatViewport.Width()
 	var sb strings.Builder
-	for i, msg := range m.messages {
+	for i := range m.messages {
 		if i > 0 {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(msg.Render(w))
+		sb.WriteString(m.messages[i].Render(w))
 	}
 	content := sb.String()
 	if m.selecting {
