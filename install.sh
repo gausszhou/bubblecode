@@ -67,8 +67,6 @@ main() {
   info "version:  v$version"
   info "target:   $install_path"
 
-
-
   info "downloading $url ..."
   curl -sfL "$url" -o "/tmp/$tarball"
   trap 'rm -f /tmp/$tarball' EXIT
@@ -79,11 +77,6 @@ main() {
   chmod +x "$install_path"
 
   info "$BINARY_NAME v$version installed to $install_path"
-
-  if ! command -v opencode &>/dev/null; then
-    warn "'opencode' not found in PATH — $BINARY_NAME requires it at runtime"
-    warn "install from: https://opencode.ai"
-  fi
 
   if [ "$os" = "windows" ]; then
     warn "$install_dir may not be in your PATH — add this to your ~/.bashrc:"
