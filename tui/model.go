@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,8 +15,6 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/gausszhou/bubblecode/agent"
 	"github.com/gausszhou/bubblecode/client"
@@ -33,13 +30,6 @@ const (
 	roleTool    = "tool"
 	rolePlan    = "plan"
 )
-
-type Selection struct {
-	StartLine int
-	StartCol  int
-	EndLine   int
-	EndCol    int
-}
 
 type Model struct {
 	logger    *slog.Logger
@@ -73,11 +63,7 @@ type Model struct {
 
 	dirty bool
 
-	dragging       bool
 	needAutoScroll bool
-
-	selecting bool
-	selection *Selection
 
 	modelName string
 }
@@ -205,117 +191,6 @@ func (m *Model) cleanup() {
 	if m.cmd != nil && m.cmd.Process != nil {
 		_ = m.cmd.Process.Kill()
 	}
-}
-
-func (m *Model) getSelectedText() string {
-	if m.selection == nil {
-		return ""
-	}
-	s := m.selection
-	startLine, endLine := s.StartLine, s.EndLine
-	startCol, endCol := s.StartCol, s.EndCol
-
-	if startLine > endLine || (startLine == endLine && startCol > endCol) {
-		startLine, endLine = endLine, startLine
-		startCol, endCol = endCol, startCol
-	}
-
-	content := m.chatViewport.GetContent()
-	lines := strings.Split(content, "\n")
-
-	var result []string
-	for i := startLine; i <= endLine && i < len(lines); i++ {
-		clean := ansi.Strip(lines[i])
-
-		colStart := 0
-		colEnd := len(clean)
-		if i == startLine {
-			colStart = startCol
-		}
-		if i == endLine {
-			colEnd = endCol
-		}
-		if colStart < 0 {
-			colStart = 0
-		}
-		if colEnd > len(clean) {
-			colEnd = len(clean)
-		}
-		if colStart >= colEnd {
-			continue
-		}
-
-		part := clean[colStart:colEnd]
-		if len(part) >= 2 {
-			part = part[2:]
-		}
-		part = strings.TrimRight(part, " ")
-		part = strings.TrimRight(part, "\x00")
-		if part != "" {
-			result = append(result, part)
-		}
-	}
-	return strings.Join(result, "\n")
-}
-
-func (m *Model) copyToClipboard(text string) {
-	if text == "" {
-		m.statusText = "nothing selected"
-		return
-	}
-	err := clipboard.WriteAll(text)
-	if err != nil {
-		m.statusText = "copy failed"
-	} else {
-		preview := text
-		if len([]rune(preview)) > 40 {
-			preview = string([]rune(preview)[:40]) + "..."
-		}
-		m.statusText = "copied"
-	}
-}
-
-func (m *Model) applySelectionHighlight(content string) string {
-	if !m.selecting || m.selection == nil {
-		return content
-	}
-
-	s := m.selection
-	startLine, endLine := s.StartLine, s.EndLine
-	startCol, endCol := s.StartCol, s.EndCol
-
-	if startLine > endLine || (startLine == endLine && startCol > endCol) {
-		startLine, endLine = endLine, startLine
-		startCol, endCol = endCol, startCol
-	}
-
-	lines := strings.Split(content, "\n")
-	for i := startLine; i <= endLine && i < len(lines); i++ {
-		lineWidth := ansi.StringWidth(lines[i])
-		colStart := 0
-		colEnd := lineWidth
-		if i == startLine {
-			colStart = startCol
-		}
-		if i == endLine {
-			colEnd = endCol
-		}
-		if colStart >= colEnd || colStart >= lineWidth {
-			continue
-		}
-		if colEnd > lineWidth {
-			colEnd = lineWidth
-		}
-
-		before := ansi.Cut(lines[i], 0, colStart)
-		selected := ansi.Cut(lines[i], colStart, colEnd)
-		after := ansi.Cut(lines[i], colEnd, lineWidth)
-
-		selected = strings.ReplaceAll(selected, "\x1b[0m", "\x1b[0m\x1b[7m")
-
-		lines[i] = before + "\x1b[7m" + selected + "\x1b[27m" + after
-	}
-	return strings.Join(lines, "\n")
 }
 
 func newTextarea() textarea.Model {
