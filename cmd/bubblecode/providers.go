@@ -66,17 +66,13 @@ func providersListCmd() *cobra.Command {
 			}
 			fmt.Printf("Default: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
 			for i, p := range cfg.Providers {
-				mark := " "
-				if p.Name == cfg.DefaultProvider {
-					mark = ">"
-				}
-				fmt.Printf("  %s %2d. %-20s %s\n", mark, i+1, p.Name, p.APIBase)
+				fmt.Printf("%d.%s(%s)\n", i+1, p.Name, p.APIBase)
 				for _, m := range p.Models {
 					dm := m.ID
 					if p.Name == cfg.DefaultProvider && m.ID == cfg.DefaultModel {
 						dm += " [default]"
 					}
-					fmt.Printf("      %s\n", dm)
+					fmt.Printf("  %s\n", dm)
 				}
 			}
 			fmt.Println()
@@ -189,13 +185,9 @@ func providerPicker(cfg *agent.Config, title string) *agent.Provider {
 
 func providerConfigScreen(path string, cfg *agent.Config) error {
 	for {
-		fmt.Printf("\n  Active: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
+		fmt.Println()
 		for i, p := range cfg.Providers {
-			mark := " "
-			if p.Name == cfg.DefaultProvider {
-				mark = ">"
-			}
-			fmt.Printf("  %s %2d. %-20s %s\n", mark, i+1, p.Name, p.APIBase)
+			fmt.Printf("%d.%s(%s)\n", i+1, p.Name, p.APIBase)
 		}
 		fmt.Println()
 
@@ -204,7 +196,6 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 			huh.NewOption("Add provider", "add"),
 			huh.NewOption("Delete provider", "del"),
 			huh.NewOption("Edit provider", "edit"),
-			huh.NewOption("Switch active provider", "switch"),
 			huh.NewOption("Save and quit", "quit"),
 		}
 		err := huh.NewSelect[string]().
@@ -321,37 +312,6 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 				}
 			}
 			fmt.Printf("Provider '%s' updated.\n", ed.Name)
-
-		case "switch":
-			if len(cfg.Providers) == 0 {
-				fmt.Println("No providers configured.")
-				continue
-			}
-			p := providerPicker(cfg, "Select provider to activate")
-			if p == nil {
-				continue
-			}
-			cfg.DefaultProvider = p.Name
-			if len(p.Models) > 0 {
-				if len(p.Models) == 1 {
-					cfg.DefaultModel = p.Models[0].ID
-				} else {
-					modelOpts := make([]huh.Option[string], len(p.Models))
-					for i, m := range p.Models {
-						modelOpts[i] = huh.NewOption(m.ID, m.ID)
-					}
-					var model string
-					huh.NewSelect[string]().
-						Title("Select model").
-						Options(modelOpts...).
-						Value(&model).
-						Run()
-					if model != "" {
-						cfg.DefaultModel = model
-					}
-				}
-			}
-			fmt.Printf("Default: %s / %s\n", cfg.DefaultProvider, cfg.DefaultModel)
 		}
 	}
 }
