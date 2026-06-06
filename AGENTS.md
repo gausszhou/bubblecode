@@ -96,4 +96,4 @@ Paste protection: keystrokes <20ms apart treated as paste (inserted as text, not
 - `agent/` uses `package agent` (NOT standalone binary; imported from `cmd/bubblecode/chat.go`).
 - `opencode` CLI is NOT required at runtime — the app spawns itself (`bubblecode acp`) as the ACP agent subprocess.
 - `docs/` contains authoritative design references (`opencode-ui-design.md`, `overlay.md`, `lipgloss-best-practices.md`). Check these before making UI changes.
-- CI runs on `main` branch; release is triggered by `v*` tags.
+- CI runs on `master` branch; release is triggered by `v*` tags.
