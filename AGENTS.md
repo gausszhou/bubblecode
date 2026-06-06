@@ -1,100 +1,99 @@
 # bubblecode
 
-TUI for AI agents via the [ACP protocol](https://github.com/coder/acp-go-sdk) (`opencode acp`).
+TUI for AI agents via the [ACP protocol](https://github.com/coder/acp-go-sdk).
 
-## Build
+Built with [Bubble Tea v2](charm.land/bubbletea/v2), [Lip Gloss v2](charm.land/lipgloss/v2).
+
+## Build & Run
 
 ```bash
-make build              # build client and agent
-make build-client       # build TUI app only
-make build-agent        # build standalone example agent only
+go build -o bin/bubblecode .                        # single binary
+CGO_ENABLED=0 go build -ldflags="-s -w" .            # production build
+go run .                                             # requires config
+BUBBLECODE_API_KEY=sk-... go run .                   # quick start with env
+go run . --debug                                     # log to ~/.gausszhou/bubblecode/logs/
+go install .                                         # install to $GOPATH/bin
 ```
 
-Or manually:
+The Makefile offers cross-compilation targets (`build-linux`, `build-darwin`, `build-windows`, `build-all`) and `package` for release tarballs:
 
 ```bash
-go build -o bin/client.exe .        # TUI app
-go build -o bin/agent.exe ./agent   # standalone example agent
-```
-
-## Run
-
-```bash
-go run .                              # requires `opencode` in PATH
-go run . --debug                      # log to ./bubblecode.log in current directory
-go run ./agent                        # example agent, connects via stdio
-```
-
-## Development
-
-```bash
-make fmt          # format code (go fmt ./...)
-make vet          # run go vet
-make lint         # run golangci-lint
-make check        # run fmt + vet + lint
-make clean        # remove bin/ directory
+make fmt          # go fmt ./...
+make vet          # go vet ./...
+make lint         # golangci-lint run ./...
+make test         # go test ./...
+make build-all    # cross-compile for all platforms
+make package      # build + tar.gz per platform
+make clean        # rm -rf bin/ dist/
 ```
 
 ## Architecture
 
 ```
-main.go → spawns agent.exe subprocess
-          ↓ stdin/stdout pipes
-    client/ → ACP client (sends/receives commands)
-          ↓ channels
-       tui/ → Bubble Tea TUI (chat + sidebar)
+main.go → cmd/bubblecode/ (cobra CLI)
+            ├── chat       → TUI (default)
+            │     spawns subprocess: bubblecode acp
+            │     ↓ stdin/stdout pipes
+            │   client/ → ACP client (sends/receives commands)
+            │        ↓ channels
+            │     tui/ → Bubble Tea app (chat viewport + sidebar)
+            ├── acp         → ACP server (stdio mode, spawned by `chat`)
+            │     uses agent/ package (LLM client, tools, config)
+            ├── providers   → manage API provider configs
+            └── models      → manage model configs
 ```
 
-- `main.go` — entrypoint. Spawns `agent.exe` as subprocess, connects via stdin/stdout pipes using `acp-go-sdk`.
-- `client/client.go` — implements `acp.Client` interface. Sends/receives commands over channels. Also handles fs ops (ReadTextFile, WriteTextFile) and terminal stubs.
-- `tui/` — Bubble Tea v2 app. Left-right layout: chat+input+status (68%) | todo+session sidebar.
-- `tui/theme/theme.go` — centralized color and style definitions.
-- `tui/component/` — reusable UI components (TodoList, StatusBar, SessionList, etc.).
-- `agent/agent.go` — separate `package main` binary (NOT importable). Demo agent with simulated streaming, tool calls, and permission requests.
-- `docs/` — design references and best practices guides.
+Key directories:
+- `cmd/bubblecode/` — cobra commands: `chat.go`, `acp.go`, `providers.go`, `models.go`
+- `client/` — ACP protocol client (`ACPClient`, `PromptRunner`, `Connection`)
+- `tui/` — Bubble Tea model/view/update + `layout/`, `overlay/`, `component/`, `theme/`
+- `agent/` — importable package: LLM client, tool executor (read_file, write_file, bash, glob), config
+- `docs/` — design guides, best practices
+- `examples/` — Bubble Tea experimental code (markdown, streaming, viewports, etc.)
 
-## Key conventions
+## Config
 
-- **Enter** sends message, **Shift+Enter** inserts newline.
-- **Double-Esc** interrupts running prompt.
-- **Ctrl+P** opens command overlay, **Ctrl+N** new session, **Ctrl+S** switch session, **Ctrl+C** quit.
-- Paste protection: keystrokes <20ms apart are treated as paste and inserted as text, not sent.
-- Design: warm dark (`#201d1d`) bg, Berkeley Mono aesthetic, flat surfaces (no shadows), 4px border radius by default (6px for inputs). See `tui/theme/theme.go`.
+File: `~/.config/bubblecode/config.json` (multiple providers, each with models)
 
-## Go Best Practices
+Env: `BUBBLECODE_API_KEY` — fallback for default provider's API key.
 
-### Code Organization
+Presets: `deepseek` (`api.deepseek.com`) and `gausszhou` (`mock.gausszhou.top`).
 
-- One package per directory, package name matches directory name
-- `agent/` has its own `package main` — do not import from main app
-- Exported identifiers use PascalCase, unexported use camelCase
-- Interface names end with `-er` when applicable (e.g., `Reader`, `Writer`)
+Legacy single-key config is auto-migrated on load.
 
-### Error Handling
+## Logger
 
-- Errors are values, wrap with context using `fmt.Errorf("context: %w", err)`
-- Check errors immediately, don't defer error handling
-- Use custom error types for domain-specific errors
+Writes per-component files to `~/.gausszhou/bubblecode/logs/`:
+- `client.log` — TUI client
+- `agent.log` — ACP agent server
+- `change.log` — event collector diagnostics
 
-### Testing
+## Agent Tools
 
-- Test files named `*_test.go` in same package
-- Table-driven tests for multiple cases
-- Run `go test ./...` to execute all tests
+The LLM agent exposes 4 tools: `read_file`, `write_file`, `bash`, `glob`.
+- `bash` runs `sh -c`, default 30s timeout, configurable via `timeout` param.
+- Paths are resolved relative to session `cwd` and sandboxed (can't escape working directory).
+- Agent can switch model via `/model <id>` and provider via `/provider <name>` in-chat commands.
 
-### Dependencies
+## Key Bindings
 
-- Use `go mod tidy` after adding/removing dependencies
-- Pin versions in `go.mod`, don't use `latest`
-- Vendor dependencies only if required for offline builds
+| Key | Action |
+|---|---|
+| `Enter` | Send message |
+| `Shift+Enter` | Insert newline |
+| `Esc` `Esc` | Interrupt running prompt |
+| `Ctrl+P` | Commands panel overlay |
+| `Ctrl+N` | New session |
+| `Ctrl+S` | Session switcher overlay |
+| `↑`/`↓` / `k`/`j` | Scroll chat viewport |
+| `PgUp`/`PgDn` | Page scroll chat |
+| `Ctrl+C` | Quit |
 
-## Workflow
-
-- All development on `develop` branch. `master` is protected — do NOT push directly.
-- Merge into `master` via PR only.
+Paste protection: keystrokes <20ms apart treated as paste (inserted as text, not sent).
 
 ## Repo quirks
 
-- `agent/` has its own `package main` — do not import from main app.
-- `opencode acp` must be discoverable in PATH at runtime.
-- Windows: binaries use `.exe` extension, Makefile uses `rm -rf` (requires Git Bash or WSL).
+- `agent/` uses `package agent` (NOT standalone binary; imported from `cmd/bubblecode/chat.go`).
+- `opencode` CLI is NOT required at runtime — the app spawns itself (`bubblecode acp`) as the ACP agent subprocess.
+- `docs/` contains authoritative design references (`opencode-ui-design.md`, `overlay.md`, `lipgloss-best-practices.md`). Check these before making UI changes.
+- CI runs on `main` branch; release is triggered by `v*` tags.
