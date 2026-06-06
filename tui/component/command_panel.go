@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	flex "github.com/gausszhou/bubbleflex"
+
 	"github.com/gausszhou/bubblecode/tui/theme"
 )
 
@@ -42,62 +44,49 @@ func (cp CommandPanel) View() string {
 
 func DefaultCommands() CommandPanel {
 	return NewCommandPanel([]Command{
-		{Key: "Enter", Desc: "Send"},
-		{Key: "Shift+Enter", Desc: "Newline"},
-		{Key: "Esc Esc", Desc: "Interrupt"},
-		{Key: "Ctrl+P", Desc: "Commands"},
-		{Key: "Ctrl+M", Desc: "Change Model"},
-		{Key: "Ctrl+S", Desc: "Switch Session"},
 		{Key: "Ctrl+N", Desc: "New Session"},
-		{Key: "Ctrl+C", Desc: "Quit"},
+		{Key: "Ctrl+S", Desc: "Switch Session"},
+		{Key: "Ctrl+M", Desc: "Change Model"},
 	})
 }
 
 func (cp CommandPanel) OverlayView(selected int) string {
 	bg := theme.ThemeBgOverlay
-	var sb strings.Builder
-	sb.WriteString(theme.AccentStyle().Background(bg).Render("Commands"))
-	sb.WriteString("\n\n")
+	accent := theme.AccentStyle().Background(bg)
+	keyStyle := theme.CommandKeyStyle.Background(bg)
+	descStyle := theme.CommandDescStyle.Background(bg)
+	helpLabel := theme.HelpLabel().Background(bg)
+	indent := lipgloss.NewStyle().PaddingLeft(2).Background(bg)
+
+	content := accent.Render("Commands") + "\n\n"
 	for i, cmd := range cp.Commands {
-		mark := "  "
-		keyStyle := theme.CommandKeyStyle
-		descStyle := theme.CommandDescStyle
+		rowDesc := descStyle
 		if i == selected {
-			mark = "▸ "
-			keyStyle = theme.AccentStyle()
-			descStyle = theme.TextStyle()
+			rowDesc = theme.BaseStyle().Background(theme.ThemeWarning)
 		}
-		sb.WriteString("  ")
-		sb.WriteString(mark)
-		sb.WriteString(keyStyle.Background(bg).Render(cmd.Key))
-		sb.WriteString("  ")
-		sb.WriteString(descStyle.Background(bg).Render(cmd.Desc))
-		sb.WriteString("\n")
+		desc := rowDesc.Render("  " + cmd.Desc)
+		key := keyStyle.Render(cmd.Key)
+		content += indent.Render(flex.New(flex.Row).
+			JustifyContent(flex.SpaceBetween).
+			Width(52).
+			Gap(2).
+			Join(desc, key))
+		content += "\n"
 	}
-	sb.WriteString("\n")
-	sb.WriteString(theme.AccentStyle().Background(bg).Render("Slash commands in chat"))
-	sb.WriteString("\n\n")
-	for _, sc := range SlashCommands {
-		sb.WriteString("  ")
-		sb.WriteString(theme.CommandKeyStyle.Background(bg).Render(sc.Command))
-		sb.WriteString("  ")
-		sb.WriteString(theme.CommandDescStyle.Background(bg).Render(sc.Desc))
-		sb.WriteString("\n")
-	}
-	sb.WriteString("\n")
+	content += "\n"
 	help := fmt.Sprintf("%s  %s  %s",
-		theme.CommandKeyStyle.Background(bg).Render("↑/↓"),
-		theme.CommandDescStyle.Background(bg).Render("navigate"),
-		theme.HelpLabel().Background(bg).Render("•"),
+		keyStyle.Render("↑/↓"),
+		descStyle.Render("navigate"),
+		helpLabel.Render("•"),
 	)
 	help += fmt.Sprintf("  %s  %s",
-		theme.CommandKeyStyle.Background(bg).Render("Enter"),
-		theme.CommandDescStyle.Background(bg).Render("select"),
+		keyStyle.Render("Enter"),
+		descStyle.Render("select"),
 	)
 	help += fmt.Sprintf("  %s  %s",
-		theme.CommandKeyStyle.Background(bg).Render("Esc"),
-		theme.CommandDescStyle.Background(bg).Render("close"),
+		keyStyle.Render("Esc"),
+		descStyle.Render("close"),
 	)
-	sb.WriteString(help)
-	return theme.OverlayBox().Render(sb.String())
+	content += indent.Render(help)
+	return theme.OverlayBox().Render(content)
 }

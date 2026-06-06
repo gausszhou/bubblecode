@@ -16,13 +16,14 @@ import (
 
 func (m *Model) View() tea.View {
 	chat := m.chatViewport.View()
-	{
+	if m.focus == FocusChat {
 		h := m.chatViewport.Height()
-		sb := renderScrollbar(h, m.chatViewport.ScrollPercent())
+		sb := renderScrollbar(h, m.chatViewport.ScrollPercent(), m.chatViewport.TotalLineCount())
 		chat = lipgloss.JoinHorizontal(lipgloss.Top, chat, sb)
 	}
 	input := m.textarea.View()
 	status := m.renderStatus()
+	slashSugg := m.renderSlashSuggestions()
 
 	content := lipgloss.JoinVertical(lipgloss.Left, chat, "\n"+input, status)
 
@@ -37,8 +38,8 @@ func (m *Model) View() tea.View {
 		overlayContent := m.renderModelsOverlay()
 		content = overlay.CompositeMasked(overlayContent, content, overlay.Center, overlay.Center, 0, 0, true)
 	default:
-		if s := m.renderSlashSuggestions(); s != "" {
-			content = overlay.CompositeMasked(s, content, overlay.Center, overlay.Bottom, 0, 0, true)
+		if slashSugg != "" {
+			content = lipgloss.JoinVertical(lipgloss.Left, chat, slashSugg, "\n"+input, status)
 		}
 	}
 
@@ -52,6 +53,9 @@ func (m *Model) View() tea.View {
 
 	if c := m.textarea.Cursor(); c != nil && m.focus == FocusChat {
 		c.Y += lipgloss.Height(chat) + 1
+		if slashSugg != "" {
+			c.Y += lipgloss.Height(slashSugg)
+		}
 		view.Cursor = c
 	}
 
@@ -113,17 +117,25 @@ func comma(n int) string {
 	return string(buf)
 }
 
-func renderScrollbar(height int, percent float64) string {
-	thumb := int(percent * float64(height-1))
-	if thumb < 0 {
-		thumb = 0
+func renderScrollbar(height int, percent float64, totalLines int) string {
+	if totalLines < 1 {
+		totalLines = 1
 	}
-	if thumb >= height {
-		thumb = height - 1
+	thumbHeight := max(1, height*height/totalLines)
+	if thumbHeight > height {
+		thumbHeight = height
+	}
+	maxOffset := height - thumbHeight
+	thumbStart := int(percent * float64(maxOffset))
+	if thumbStart < 0 {
+		thumbStart = 0
+	}
+	if thumbStart > maxOffset {
+		thumbStart = maxOffset
 	}
 	var sb strings.Builder
 	for i := 0; i < height; i++ {
-		if i == thumb {
+		if i >= thumbStart && i < thumbStart+thumbHeight {
 			sb.WriteString(theme.ScrollbarThumb)
 		} else {
 			sb.WriteString(theme.ScrollbarTrack)

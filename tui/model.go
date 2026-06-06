@@ -113,7 +113,7 @@ func newChangeLog() *slog.Logger {
 
 func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context, cancel context.CancelFunc, inputCh chan client.InputCommand, outputCh chan client.OutputEvent) *Model {
 	ta := newTextarea()
-	vp := viewport.New(viewport.WithWidth(layout.GetChatWidth(layout.InitWidth)-1), viewport.WithHeight(layout.InitHeight))
+	vp := viewport.New(viewport.WithWidth(layout.GetChatWidth(layout.InitWidth)-1), viewport.WithHeight(layout.GetChatHeight(layout.InitHeight)))
 
 	modelName := "unknown"
 	if p, err := agent.ConfigPath(); err == nil {

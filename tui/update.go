@@ -303,23 +303,14 @@ func (m *Model) executeCommand(idx int) {
 		return
 	}
 	switch cmds[idx].Key {
-	case "Ctrl+C":
-		m.cleanup()
-		// tea.Quit returned via caller if needed
-	case "Ctrl+M":
-		m.focus = FocusModels
-	case "Ctrl+S":
-		m.focus = FocusSessions
 	case "Ctrl+N":
 		m.textarea.Reset()
 		m.statusText = "Creating new session..."
 		m.focus = FocusChat
-		// sendInput handled via caller
-	case "Esc Esc":
-		m.cancel()
-		m.promptRunning = false
-		m.loading = false
-		m.statusText = "Interrupted"
+	case "Ctrl+S":
+		m.focus = FocusSessions
+	case "Ctrl+M":
+		m.focus = FocusModels
 	}
 }
 
@@ -365,21 +356,16 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if text == "/new" {
-		m.textarea.Reset()
-		return m, sendInput(m.inputCh, client.InputCommand{Type: client.CmdNewSession})
-	}
-
-	if text == "/models" {
-		m.textarea.Reset()
-		m.focus = FocusModels
-		return m, nil
-	}
-
-	if text == "/sessions" {
-		m.textarea.Reset()
-		m.focus = FocusSessions
-		return m, nil
+	if strings.HasPrefix(text, "/") {
+		matches := component.MatchingSlashCommands(text)
+		cmd := component.SelectCommandName(matches, text)
+		if cmd == nil && len(matches) == 1 {
+			cmd = component.SelectCommandIndex(matches, 0)
+		}
+		if cmd != nil {
+			m.textarea.Reset()
+			return m, m.executeSlashCommand(cmd.Command)
+		}
 	}
 
 	m.textarea.Reset()
@@ -395,4 +381,16 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 	m.changeLog.Info("prompt sent", "text_length", len(text))
 
 	return m, sendInput(m.inputCh, client.InputCommand{Type: client.CmdPrompt, Text: text})
+}
+
+func (m *Model) executeSlashCommand(cmd string) tea.Cmd {
+	switch cmd {
+	case "/new":
+		return sendInput(m.inputCh, client.InputCommand{Type: client.CmdNewSession})
+	case "/models":
+		m.focus = FocusModels
+	case "/sessions":
+		m.focus = FocusSessions
+	}
+	return nil
 }
