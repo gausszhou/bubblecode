@@ -34,6 +34,7 @@ func modelsListCmd() *cobra.Command {
 				fmt.Println("No config found. Use 'bubblecode providers config' to set up.")
 				return nil
 			}
+			fmt.Printf("Active: %s / %s\n\n", cfg.ActiveProvider, cfg.ActiveModel)
 			var n int
 			for _, p := range cfg.Providers {
 				for _, m := range p.Models {
