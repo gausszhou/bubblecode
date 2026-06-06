@@ -68,6 +68,15 @@ type Model struct {
 	modelName string
 }
 
+func (m *Model) isMouseInViewport(y int) bool {
+	return y >= 0 && y < m.chatViewport.Height()
+}
+
+func (m *Model) isMouseInTextarea(y int) bool {
+	taStart := m.chatViewport.Height() + 1
+	return y >= taStart && y < taStart+layout.InputHeight
+}
+
 func newChangeLog() *slog.Logger {
 	home, err := os.UserHomeDir()
 	if err != nil {

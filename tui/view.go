@@ -29,6 +29,8 @@ func (m *Model) View() tea.View {
 	if m.showCommands {
 		overlayContent := m.renderCommandOverlay()
 		content = overlay.CompositeMasked(overlayContent, content, overlay.Center, overlay.Center, 0, 0, true)
+	} else if s := m.renderSlashSuggestions(); s != "" {
+		content = overlay.CompositeMasked(s, content, overlay.Center, overlay.Bottom, 0, 0, true)
 	}
 
 	view := tea.NewView(lipgloss.NewStyle().
@@ -61,8 +63,30 @@ func (m *Model) renderCommandOverlay() string {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
+	sb.WriteString(theme.AccentStyle().Background(bg).Render("Slash commands in chat"))
+	sb.WriteString("\n\n")
+	for _, sc := range component.SlashCommands {
+		sb.WriteString("  ")
+		sb.WriteString(theme.CommandKeyStyle.Background(bg).Render(sc.Command))
+		sb.WriteString("  ")
+		sb.WriteString(theme.CommandDescStyle.Background(bg).Render(sc.Desc))
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n")
 	sb.WriteString(theme.HelpLabel().Background(bg).Render("Esc to close"))
 	return theme.OverlayBox().Render(sb.String())
+}
+
+func (m *Model) renderSlashSuggestions() string {
+	val := m.textarea.Value()
+	if !strings.HasPrefix(val, "/") {
+		return ""
+	}
+	w := m.chatViewport.Width()
+	if w < 10 {
+		w = 40
+	}
+	return component.RenderSlashSuggestions(val, w)
 }
 
 func (m *Model) renderMessages() string {
