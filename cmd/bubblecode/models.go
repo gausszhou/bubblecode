@@ -34,16 +34,16 @@ func modelsListCmd() *cobra.Command {
 				fmt.Println("No config found. Use 'bubblecode providers config' to set up.")
 				return nil
 			}
-			fmt.Printf("Active: %s / %s\n\n", cfg.ActiveProvider, cfg.ActiveModel)
+			fmt.Printf("Default: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
 			var n int
 			for _, p := range cfg.Providers {
 				for _, m := range p.Models {
 					n++
-					mm := m
-					if p.Name == cfg.ActiveProvider && m == cfg.ActiveModel {
-						mm += " [default]"
+					dm := m.ID
+					if p.Name == cfg.DefaultProvider && m.ID == cfg.DefaultModel {
+						dm += " [default]"
 					}
-					fmt.Printf("%2d. %s/%s\n", n, p.Name, mm)
+					fmt.Printf("%2d. %s/%s\n", n, p.Name, dm)
 				}
 			}
 			if n == 0 {
@@ -64,7 +64,7 @@ func modelsSwitchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p := cfg.GetActiveProvider()
+			p := cfg.GetDefaultProvider()
 			if p == nil {
 				return fmt.Errorf("no active provider")
 			}
@@ -72,12 +72,12 @@ func modelsSwitchCmd() *cobra.Command {
 			if len(args) > 0 {
 				model = args[0]
 				if idx, err := strconv.Atoi(model); err == nil && idx >= 1 && idx <= len(p.Models) {
-					model = p.Models[idx-1]
+					model = p.Models[idx-1].ID
 				}
 			} else if len(p.Models) > 0 {
 				opts := make([]huh.Option[string], len(p.Models))
 				for i, m := range p.Models {
-					opts[i] = huh.NewOption(m, m)
+					opts[i] = huh.NewOption(m.ID, m.ID)
 				}
 				err := huh.NewSelect[string]().
 					Title("Select model").
@@ -91,7 +91,7 @@ func modelsSwitchCmd() *cobra.Command {
 			if model == "" {
 				return fmt.Errorf("no model specified and none available")
 			}
-			cfg.ActiveModel = model
+			cfg.DefaultModel = model
 			if err := agent.SaveConfig(path, cfg); err != nil {
 				return fmt.Errorf("save config: %w", err)
 			}

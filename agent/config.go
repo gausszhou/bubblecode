@@ -13,19 +13,32 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
+type Model struct {
+	ID        string `json:"id"`
+	MaxTokens *int   `json:"max_tokens,omitempty"`
+}
+
 type Provider struct {
-	Name    string   `json:"name"`
-	APIBase string   `json:"api_base"`
-	APIKey  string   `json:"api_key"`
-	Models  []string `json:"models"`
+	Name    string  `json:"name"`
+	APIBase string  `json:"api_base"`
+	APIKey  string  `json:"api_key"`
+	Models  []Model `json:"models"`
+}
+
+func (p *Provider) MaxTokensVal(modelID string, globalMax int) int {
+	for _, m := range p.Models {
+		if m.ID == modelID && m.MaxTokens != nil {
+			return *m.MaxTokens
+		}
+	}
+	return globalMax
 }
 
 type Config struct {
-	ActiveProvider string     `json:"active_provider"`
-	ActiveModel    string     `json:"active_model"`
-	Providers      []Provider `json:"providers"`
-	MaxTokens      int        `json:"max_tokens"`
-	Temperature    float64    `json:"temperature"`
+	DefaultProvider string     `json:"default_provider"`
+	DefaultModel    string     `json:"default_model"`
+	Providers       []Provider `json:"providers"`
+	MaxTokens       int        `json:"max_tokens"`
 }
 
 func DefaultConfig() *Config {
@@ -34,13 +47,12 @@ func DefaultConfig() *Config {
 			{
 				Name:    "deepseek",
 				APIBase: "https://api.deepseek.com/v1",
-				Models:  []string{"deepseek-chat", "deepseek-reasoner"},
+				Models:  []Model{{ID: "deepseek-chat"}, {ID: "deepseek-reasoner"}},
 			},
 		},
-		ActiveProvider: "deepseek",
-		ActiveModel:    "deepseek-chat",
+		DefaultProvider: "deepseek",
+		DefaultModel:    "deepseek-chat",
 		MaxTokens:      4096,
-		Temperature:    0.7,
 	}
 }
 
@@ -71,11 +83,10 @@ func LoadConfig(path string) (*Config, error) {
 
 	if !hasProviders && (hasAPIBase || rawMap["api_key"] != nil) {
 		var old struct {
-			APIBase     string  `json:"api_base"`
-			APIKey      string  `json:"api_key"`
-			Model       string  `json:"model"`
-			MaxTokens   int     `json:"max_tokens"`
-			Temperature float64 `json:"temperature"`
+			APIBase   string `json:"api_base"`
+			APIKey    string `json:"api_key"`
+			Model     string `json:"model"`
+			MaxTokens int    `json:"max_tokens"`
 		}
 		if err := json.Unmarshal(data, &old); err != nil {
 			return nil, fmt.Errorf("parse legacy config: %w", err)
@@ -97,10 +108,6 @@ func LoadConfig(path string) (*Config, error) {
 		if maxTokens <= 0 {
 			maxTokens = 4096
 		}
-		temp := old.Temperature
-		if temp <= 0 {
-			temp = 0.7
-		}
 
 		cfg := &Config{
 			Providers: []Provider{
@@ -108,13 +115,12 @@ func LoadConfig(path string) (*Config, error) {
 					Name:    "default",
 					APIBase: apiBase,
 					APIKey:  apiKey,
-					Models:  []string{model},
+					Models:  []Model{{ID: model}},
 				},
 			},
-			ActiveProvider: "default",
-			ActiveModel:    model,
+			DefaultProvider: "default",
+			DefaultModel:    model,
 			MaxTokens:      maxTokens,
-			Temperature:    temp,
 		}
 
 		if saveErr := SaveConfig(path, cfg); saveErr == nil {
@@ -132,17 +138,14 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = 4096
 	}
-	if cfg.Temperature <= 0 {
-		cfg.Temperature = 0.7
+	if cfg.DefaultProvider == "" && len(cfg.Providers) > 0 {
+		cfg.DefaultProvider = cfg.Providers[0].Name
 	}
-	if cfg.ActiveProvider == "" && len(cfg.Providers) > 0 {
-		cfg.ActiveProvider = cfg.Providers[0].Name
-	}
-	if cfg.ActiveModel == "" {
-		if p := cfg.GetActiveProvider(); p != nil && len(p.Models) > 0 {
-			cfg.ActiveModel = p.Models[0]
+	if cfg.DefaultModel == "" {
+		if p := cfg.GetDefaultProvider(); p != nil && len(p.Models) > 0 {
+			cfg.DefaultModel = p.Models[0].ID
 		} else {
-			cfg.ActiveModel = "deepseek-chat"
+			cfg.DefaultModel = "deepseek-chat"
 		}
 	}
 
@@ -170,9 +173,9 @@ func SaveConfig(path string, cfg *Config) error {
 	return nil
 }
 
-func (c *Config) GetActiveProvider() *Provider {
+func (c *Config) GetDefaultProvider() *Provider {
 	for _, p := range c.Providers {
-		if p.Name == c.ActiveProvider {
+		if p.Name == c.DefaultProvider {
 			return &p
 		}
 	}
@@ -182,7 +185,7 @@ func (c *Config) GetActiveProvider() *Provider {
 	return nil
 }
 
-func FetchModels(apiBase, apiKey string) ([]string, error) {
+func FetchModels(apiBase, apiKey string) ([]Model, error) {
 	base := strings.TrimRight(apiBase, "/") + "/"
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
@@ -198,9 +201,9 @@ func FetchModels(apiBase, apiKey string) ([]string, error) {
 		return nil, fmt.Errorf("list models: %v", err)
 	}
 
-	var models []string
+	var models []Model
 	for _, m := range page.Data {
-		models = append(models, m.ID)
+		models = append(models, Model{ID: m.ID})
 	}
 	return models, nil
 }
@@ -208,9 +211,9 @@ func FetchModels(apiBase, apiKey string) ([]string, error) {
 func (c *Config) SwitchProvider(name string) bool {
 	for _, p := range c.Providers {
 		if p.Name == name {
-			c.ActiveProvider = name
+			c.DefaultProvider = name
 			if len(p.Models) > 0 {
-				c.ActiveModel = p.Models[0]
+				c.DefaultModel = p.Models[0].ID
 			}
 			return true
 		}

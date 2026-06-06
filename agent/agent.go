@@ -74,7 +74,7 @@ Working directory: %s`, cwd)
 		conversation: NewConversation(systemPrompt),
 		executor:     NewToolExecutor(cwd),
 		cwd:          cwd,
-		model:        a.cfg.ActiveModel,
+		model:        a.cfg.DefaultModel,
 	}
 
 	a.mu.Lock()
@@ -110,7 +110,7 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 
 	a.logger.Info("prompt received", "session_id", sid, "text_length", len(promptText))
 
-	p := a.cfg.GetActiveProvider()
+	p := a.cfg.GetDefaultProvider()
 	if p == nil || p.APIKey == "" {
 		errMsg := "API key not configured. Set BUBBLECODE_API_KEY env var or create ~/.config/bubblecode/config.json"
 		a.sendText(ctx, params.SessionId, errMsg)
@@ -140,8 +140,8 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 			} else {
 				if a.cfg.SwitchProvider(providerName) {
 					if saveErr := SaveConfig(configPath, a.cfg); saveErr == nil {
-						a.logger.Info("provider switched", "provider", providerName, "model", a.cfg.ActiveModel)
-						if err := a.sendText(ctx, params.SessionId, fmt.Sprintf("Switched to provider: %s (model: %s)", providerName, a.cfg.ActiveModel)); err != nil {
+						a.logger.Info("provider switched", "provider", providerName, "model", a.cfg.DefaultModel)
+						if err := a.sendText(ctx, params.SessionId, fmt.Sprintf("Switched to provider: %s (model: %s)", providerName, a.cfg.DefaultModel)); err != nil {
 							a.logger.Error("send provider switch text failed", "error", err)
 						}
 					}
@@ -155,8 +155,8 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 		return acp.PromptResponse{}, nil
 	}
 
-	p = a.cfg.GetActiveProvider()
-	llm := NewLLMClient(p.APIBase, p.APIKey, ss.model, a.cfg.MaxTokens, a.cfg.Temperature)
+	p = a.cfg.GetDefaultProvider()
+	llm := NewLLMClient(p.APIBase, p.APIKey, ss.model, p.MaxTokensVal(ss.model, a.cfg.MaxTokens), 0)
 	tools := DefaultTools()
 
 	for {

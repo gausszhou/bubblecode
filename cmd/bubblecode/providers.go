@@ -64,19 +64,19 @@ func providersListCmd() *cobra.Command {
 				fmt.Println("No providers configured. Use 'bubblecode providers add' or 'bubblecode providers config'.")
 				return nil
 			}
-			fmt.Printf("Active: %s / %s\n\n", cfg.ActiveProvider, cfg.ActiveModel)
+			fmt.Printf("Default: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
 			for i, p := range cfg.Providers {
 				mark := " "
-				if p.Name == cfg.ActiveProvider {
+				if p.Name == cfg.DefaultProvider {
 					mark = ">"
 				}
 				fmt.Printf("  %s %2d. %-20s %s\n", mark, i+1, p.Name, p.APIBase)
 				for _, m := range p.Models {
-					mm := "  "
-					if p.Name == cfg.ActiveProvider && m == cfg.ActiveModel {
-						mm = " *"
+					dm := m.ID
+					if p.Name == cfg.DefaultProvider && m.ID == cfg.DefaultModel {
+						dm += " [default]"
 					}
-					fmt.Printf("    %s %s\n", mm, m)
+					fmt.Printf("      %s\n", dm)
 				}
 			}
 			fmt.Println()
@@ -110,9 +110,9 @@ func providersAddCmd() *cobra.Command {
 			}
 			cfg.Providers = append(cfg.Providers, p)
 			if len(cfg.Providers) == 1 {
-				cfg.ActiveProvider = p.Name
+				cfg.DefaultProvider = p.Name
 				if len(p.Models) > 0 {
-					cfg.ActiveModel = p.Models[0]
+					cfg.DefaultModel = p.Models[0].ID
 				}
 			}
 
@@ -149,15 +149,15 @@ func providersDeleteCmd() *cobra.Command {
 			}
 			cfg.Providers = newProviders
 
-			if del.Name == cfg.ActiveProvider {
+			if del.Name == cfg.DefaultProvider {
 				if len(cfg.Providers) > 0 {
-					cfg.ActiveProvider = cfg.Providers[0].Name
+					cfg.DefaultProvider = cfg.Providers[0].Name
 					if len(cfg.Providers[0].Models) > 0 {
-						cfg.ActiveModel = cfg.Providers[0].Models[0]
+						cfg.DefaultModel = cfg.Providers[0].Models[0].ID
 					}
 				} else {
-					cfg.ActiveProvider = ""
-					cfg.ActiveModel = ""
+					cfg.DefaultProvider = ""
+					cfg.DefaultModel = ""
 				}
 			}
 
@@ -189,10 +189,10 @@ func providerPicker(cfg *agent.Config, title string) *agent.Provider {
 
 func providerConfigScreen(path string, cfg *agent.Config) error {
 	for {
-		fmt.Printf("\n  Active: %s / %s\n\n", cfg.ActiveProvider, cfg.ActiveModel)
+		fmt.Printf("\n  Active: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
 		for i, p := range cfg.Providers {
 			mark := " "
-			if p.Name == cfg.ActiveProvider {
+			if p.Name == cfg.DefaultProvider {
 				mark = ">"
 			}
 			fmt.Printf("  %s %2d. %-20s %s\n", mark, i+1, p.Name, p.APIBase)
@@ -235,9 +235,9 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 			}
 			cfg.Providers = append(cfg.Providers, p)
 			if len(cfg.Providers) == 1 {
-				cfg.ActiveProvider = p.Name
+				cfg.DefaultProvider = p.Name
 				if len(p.Models) > 0 {
-					cfg.ActiveModel = p.Models[0]
+					cfg.DefaultModel = p.Models[0].ID
 				}
 			}
 
@@ -257,10 +257,10 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 				}
 			}
 			cfg.Providers = newProviders
-			if del.Name == cfg.ActiveProvider && len(cfg.Providers) > 0 {
-				cfg.ActiveProvider = cfg.Providers[0].Name
+			if del.Name == cfg.DefaultProvider && len(cfg.Providers) > 0 {
+				cfg.DefaultProvider = cfg.Providers[0].Name
 				if len(cfg.Providers[0].Models) > 0 {
-					cfg.ActiveModel = cfg.Providers[0].Models[0]
+					cfg.DefaultModel = cfg.Providers[0].Models[0].ID
 				}
 			}
 			fmt.Printf("Deleted '%s'.\n", del.Name)
@@ -297,12 +297,15 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 					Value(&modelsStr).
 					Run()
 				if modelsStr != "" {
-					ed.Models = splitComma(modelsStr)
+					ed.Models = nil
+					for _, s := range splitComma(modelsStr) {
+						ed.Models = append(ed.Models, agent.Model{ID: s})
+					}
 				}
 			} else {
 				modelOpts := make([]huh.Option[string], len(apiModels))
 				for i, m := range apiModels {
-					modelOpts[i] = huh.NewOption(m, m)
+					modelOpts[i] = huh.NewOption(m.ID, m.ID)
 				}
 				var selected []string
 				huh.NewMultiSelect[string]().
@@ -311,7 +314,10 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 					Value(&selected).
 					Run()
 				if len(selected) > 0 {
-					ed.Models = selected
+					ed.Models = nil
+					for _, s := range selected {
+						ed.Models = append(ed.Models, agent.Model{ID: s})
+					}
 				}
 			}
 			fmt.Printf("Provider '%s' updated.\n", ed.Name)
@@ -325,14 +331,14 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 			if p == nil {
 				continue
 			}
-			cfg.ActiveProvider = p.Name
+			cfg.DefaultProvider = p.Name
 			if len(p.Models) > 0 {
 				if len(p.Models) == 1 {
-					cfg.ActiveModel = p.Models[0]
+					cfg.DefaultModel = p.Models[0].ID
 				} else {
 					modelOpts := make([]huh.Option[string], len(p.Models))
 					for i, m := range p.Models {
-						modelOpts[i] = huh.NewOption(m, m)
+						modelOpts[i] = huh.NewOption(m.ID, m.ID)
 					}
 					var model string
 					huh.NewSelect[string]().
@@ -341,11 +347,11 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 						Value(&model).
 						Run()
 					if model != "" {
-						cfg.ActiveModel = model
+						cfg.DefaultModel = model
 					}
 				}
 			}
-			fmt.Printf("Activated: %s / %s\n", cfg.ActiveProvider, cfg.ActiveModel)
+			fmt.Printf("Default: %s / %s\n", cfg.DefaultProvider, cfg.DefaultModel)
 		}
 	}
 }

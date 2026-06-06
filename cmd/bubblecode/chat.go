@@ -125,7 +125,7 @@ func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
 	fmt.Println("  Fetching available models...")
 	apiModels, fetchErr := agent.FetchModels(apiBase, apiKey)
 
-	var models []string
+	var models []agent.Model
 	if fetchErr != nil {
 		fmt.Printf("  Warning: could not fetch models (%v)\n", fetchErr)
 		var modelsInput string
@@ -138,16 +138,16 @@ func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
 			return agent.Provider{}, err
 		}
 		if modelsInput == "" {
-			models = []string{"deepseek-chat"}
+			models = []agent.Model{{ID: "deepseek-chat"}}
 		} else {
 			for _, m := range splitComma(modelsInput) {
-				models = append(models, m)
+				models = append(models, agent.Model{ID: m})
 			}
 		}
 	} else {
 		modelOpts := make([]huh.Option[string], len(apiModels))
 		for i, m := range apiModels {
-			modelOpts[i] = huh.NewOption(m, m)
+			modelOpts[i] = huh.NewOption(m.ID, m.ID)
 		}
 		var selected []string
 		err = huh.NewMultiSelect[string]().
@@ -161,7 +161,9 @@ func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
 		if len(selected) == 0 {
 			models = apiModels
 		} else {
-			models = selected
+			for _, s := range selected {
+				models = append(models, agent.Model{ID: s})
+			}
 		}
 	}
 
@@ -192,7 +194,7 @@ func ensureConfig() (*agent.Config, error) {
 
 	cfg, err := agent.LoadConfig(path)
 	if err == nil {
-		p := cfg.GetActiveProvider()
+		p := cfg.GetDefaultProvider()
 		if p != nil && p.APIKey != "" {
 			return cfg, nil
 		}
@@ -240,11 +242,10 @@ func ensureConfig() (*agent.Config, error) {
 	}
 
 	cfg = &agent.Config{
-		Providers:      providers,
-		ActiveProvider: providers[0].Name,
-		ActiveModel:    providers[0].Models[0],
-		MaxTokens:      4096,
-		Temperature:    0.7,
+		Providers:       providers,
+		DefaultProvider: providers[0].Name,
+		DefaultModel:    providers[0].Models[0].ID,
+		MaxTokens:       4096,
 	}
 
 	if err := agent.SaveConfig(path, cfg); err != nil {

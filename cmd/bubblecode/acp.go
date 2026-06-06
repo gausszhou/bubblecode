@@ -49,7 +49,7 @@ func runACPServer(cmd *cobra.Command) error {
 		cfg = agent.DefaultConfig()
 	}
 
-	p := cfg.GetActiveProvider()
+	p := cfg.GetDefaultProvider()
 	if p == nil || p.APIKey == "" {
 		log.Warn("API key not configured, agent will return errors until configured",
 			"hint", "set BUBBLECODE_API_KEY env var or create config at "+path)
@@ -59,7 +59,7 @@ func runACPServer(cmd *cobra.Command) error {
 	conn := acp.NewAgentSideConnection(agentInstance, os.Stdout, os.Stdin)
 	agentInstance.SetAgentConnection(conn)
 
-	log.Info("ACP server started", "provider", cfg.ActiveProvider, "model", cfg.ActiveModel)
+	log.Info("ACP server started", "provider", cfg.DefaultProvider, "model", cfg.DefaultModel)
 
 	<-conn.Done()
 	log.Info("ACP server stopped")
