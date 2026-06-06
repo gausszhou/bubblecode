@@ -17,6 +17,7 @@ func modelsCmd() *cobra.Command {
 	}
 	cmd.AddCommand(modelsListCmd())
 	cmd.AddCommand(modelsSwitchCmd())
+	cmd.AddCommand(modelsConfigCmd())
 	return cmd
 }
 
@@ -97,6 +98,130 @@ func modelsSwitchCmd() *cobra.Command {
 			}
 			fmt.Printf("Model switched to: %s\n", model)
 			return nil
+		},
+	}
+}
+
+func modelsConfigCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "config",
+		Short: "Interactive model configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := agent.ConfigPath()
+			if err != nil {
+				return err
+			}
+			cfg, err := agent.LoadConfig(path)
+			if err != nil {
+				fmt.Println("No config found. Use 'bubblecode providers config' to set up.")
+				return nil
+			}
+
+			for {
+				fmt.Printf("\n  Default: %s / %s\n\n", cfg.DefaultProvider, cfg.DefaultModel)
+				var n int
+				for _, p := range cfg.Providers {
+					for _, m := range p.Models {
+						n++
+						dm := m.ID
+						if p.Name == cfg.DefaultProvider && m.ID == cfg.DefaultModel {
+							dm += " [default]"
+						}
+						mt := ""
+						if m.MaxTokens != nil {
+							mt = fmt.Sprintf(" (max_tokens: %d)", *m.MaxTokens)
+						}
+						fmt.Printf("  %2d. %s/%s%s\n", n, p.Name, dm, mt)
+					}
+				}
+				fmt.Println()
+
+				var choice string
+				opts := []huh.Option[string]{
+					huh.NewOption("Switch default model", "switch"),
+					huh.NewOption("Set max_tokens for a model", "tokens"),
+					huh.NewOption("Done", "quit"),
+				}
+				err := huh.NewSelect[string]().
+					Title("Model Config").
+					Options(opts...).
+					Value(&choice).
+					Run()
+				if err != nil {
+					return err
+				}
+
+				switch choice {
+				case "quit":
+					if err := agent.SaveConfig(path, cfg); err != nil {
+						return fmt.Errorf("save config: %w", err)
+					}
+					fmt.Println("Config saved.")
+					return nil
+
+				case "switch":
+					p := cfg.GetDefaultProvider()
+					if p == nil || len(p.Models) == 0 {
+						fmt.Println("No models available.")
+						continue
+					}
+					modelOpts := make([]huh.Option[string], len(p.Models))
+					for i, m := range p.Models {
+						label := m.ID
+						if m.ID == cfg.DefaultModel {
+							label += " [default]"
+						}
+						modelOpts[i] = huh.NewOption(label, m.ID)
+					}
+					var model string
+					huh.NewSelect[string]().
+						Title("Select default model").
+						Options(modelOpts...).
+						Value(&model).
+						Run()
+					if model != "" {
+						cfg.DefaultModel = model
+					}
+
+				case "tokens":
+					var modelID string
+					allOpts := []huh.Option[string]{}
+					for _, p := range cfg.Providers {
+						for _, m := range p.Models {
+							allOpts = append(allOpts, huh.NewOption(m.ID, m.ID))
+						}
+					}
+					if len(allOpts) == 0 {
+						fmt.Println("No models available.")
+						continue
+					}
+					huh.NewSelect[string]().
+						Title("Select model to set max_tokens").
+						Options(allOpts...).
+						Value(&modelID).
+						Run()
+					if modelID == "" {
+						continue
+					}
+					var val string
+					huh.NewInput().
+						Title(fmt.Sprintf("max_tokens for %s (0 = global default)", modelID)).
+						Value(&val).
+						Run()
+					for i := range cfg.Providers {
+						for j := range cfg.Providers[i].Models {
+							if cfg.Providers[i].Models[j].ID == modelID {
+								n, _ := strconv.Atoi(val)
+								if n > 0 {
+									cfg.Providers[i].Models[j].MaxTokens = &n
+								} else {
+									cfg.Providers[i].Models[j].MaxTokens = nil
+								}
+							}
+						}
+					}
+				}
+			}
 		},
 	}
 }
