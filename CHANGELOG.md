@@ -2,7 +2,7 @@
 
 All notable changes to bubblecode will be documented in this file.
 
-## [Unreleased]
+## [0.0.4] - 2026-06-06
 
 ### Added
 - ACP protocol integration via `acp-go-sdk` v0.12.0 with `opencode acp` agent
