@@ -169,7 +169,7 @@ func modelsConfigCmd() *cobra.Command {
 						modelOpts[i] = huh.NewOption(label, m.ID)
 					}
 					var model string
-					huh.NewSelect[string]().
+					_ = huh.NewSelect[string]().
 						Title("Select default model").
 						Options(modelOpts...).
 						Value(&model).

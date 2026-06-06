@@ -80,6 +80,19 @@ func (sl *SessionList) Down() {
 	}
 }
 
+func (sl SessionList) OverlayView() string {
+	bg := theme.ThemeBgOverlay
+	sl.TitleStyle = sl.TitleStyle.Background(bg)
+	sl.ActiveStyle = sl.ActiveStyle.Background(bg)
+	sl.NormalStyle = sl.NormalStyle.Background(bg)
+	sl.SelectStyle = sl.SelectStyle.Background(bg)
+
+	content := sl.View()
+	content += "\n\n"
+	content += theme.HelpLabel().Background(bg).Render("↑/↓ navigate  •  Enter switch  •  Esc close")
+	return theme.OverlayBox().Render(content)
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

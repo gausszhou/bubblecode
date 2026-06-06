@@ -14,11 +14,9 @@ type SlashCommand struct {
 }
 
 var SlashCommands = []SlashCommand{
-	{Command: "/help", Desc: "Show available commands"},
+	{Command: "/new", Desc: "Create new session"},
 	{Command: "/models", Desc: "Switch current model"},
 	{Command: "/sessions", Desc: "Switch current session"},
-	{Command: "/model <name>", Desc: "Switch agent model"},
-	{Command: "/provider <name>", Desc: "Switch provider"},
 }
 
 func MatchingSlashCommands(input string) []SlashCommand {
@@ -42,6 +40,22 @@ func MatchingSlashCommands(input string) []SlashCommand {
 		}
 	}
 	return matches
+}
+
+func SelectCommandIndex(matches []SlashCommand, idx int) *SlashCommand {
+	if idx < 0 || idx >= len(matches) {
+		return nil
+	}
+	return &matches[idx]
+}
+
+func SelectCommandName(matches []SlashCommand, name string) *SlashCommand {
+	for i := range matches {
+		if matches[i].Command == name {
+			return &matches[i]
+		}
+	}
+	return nil
 }
 
 func RenderSlashSuggestions(input string, width int) string {

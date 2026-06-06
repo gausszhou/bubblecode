@@ -77,23 +77,69 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if m.showCommands {
+	switch m.focus {
+	case FocusCommands:
 		switch msg.String() {
 		case "esc", "ctrl+p":
-			m.showCommands = false
+			m.focus = FocusChat
+			m.commands.selected = 0
+		case "up", "k":
+			if m.commands.selected > 0 {
+				m.commands.selected--
+			}
+		case "down", "j":
+			cmds := component.DefaultCommands().Commands
+			if m.commands.selected < len(cmds)-1 {
+				m.commands.selected++
+			}
+		case "enter":
+			m.executeCommand(m.commands.selected)
+		}
+		return m, nil
+
+	case FocusSessions:
+		switch msg.String() {
+		case "esc":
+			m.focus = FocusChat
+			m.sessions.list.SelectedIdx = 0
+		case "up", "k":
+			m.sessions.list.Up()
+		case "down", "j":
+			m.sessions.list.Down()
+		case "enter":
+			m.switchSession()
+		}
+		return m, nil
+
+	case FocusModels:
+		switch msg.String() {
+		case "esc":
+			m.focus = FocusChat
+			m.models.list.SelectedIdx = 0
+		case "up", "k":
+			m.models.list.Up()
+		case "down", "j":
+			m.models.list.Down()
+		case "enter":
+			m.selectModel()
 		}
 		return m, nil
 	}
 
 	switch msg.String() {
+	case "ctrl+n":
+		return m, sendInput(m.inputCh, client.InputCommand{Type: client.CmdNewSession})
+
 	case "ctrl+p":
-		m.showCommands = true
+		m.focus = FocusCommands
+		return m, nil
+
+	case "ctrl+s":
+		m.focus = FocusSessions
 		return m, nil
 
 	case "ctrl+m":
-		m.textarea.Reset()
-		m.textarea.SetValue("/model ")
-		m.textarea.Focus()
+		m.focus = FocusModels
 		return m, nil
 
 	case "enter":
@@ -162,6 +208,25 @@ func (m *Model) handleOutputEvent(ev client.OutputEvent) {
 		m.statusText = "Error: " + ev.Error.Error()
 		m.dirty = true
 		m.changeLog.Info("prompt error", "error", ev.Error.Error())
+	case "session_created":
+		id := fmt.Sprintf("%d", m.sessions.nextID)
+		m.sessions.nextID++
+		name := fmt.Sprintf("Session %s", id)
+		m.sessions.list.Sessions = append(m.sessions.list.Sessions, component.SessionItem{
+			ID:     id,
+			Name:   name,
+			Active: true,
+		})
+		for i := range m.sessions.list.Sessions {
+			m.sessions.list.Sessions[i].Active = m.sessions.list.Sessions[i].ID == id
+		}
+		m.sessions.current = id
+		m.messages = nil
+		m.chars = 0
+		m.statusText = "New session: " + name
+		m.focus = FocusChat
+		m.dirty = true
+		m.changeLog.Info("session created", "id", id)
 	}
 }
 
@@ -232,6 +297,56 @@ func (m *Model) appendOrNewMessage(role, content string) {
 	m.chars += len(content)
 }
 
+func (m *Model) executeCommand(idx int) {
+	cmds := component.DefaultCommands().Commands
+	if idx < 0 || idx >= len(cmds) {
+		return
+	}
+	switch cmds[idx].Key {
+	case "Ctrl+N":
+		m.textarea.Reset()
+		m.statusText = "Creating new session..."
+		m.focus = FocusChat
+	case "Ctrl+S":
+		m.focus = FocusSessions
+	case "Ctrl+M":
+		m.focus = FocusModels
+	}
+}
+
+func (m *Model) switchSession() {
+	idx := m.sessions.list.SelectedIdx
+	if idx < 0 || idx >= len(m.sessions.list.Sessions) {
+		return
+	}
+	sess := m.sessions.list.Sessions[idx]
+	if sess.ID == m.sessions.current {
+		m.focus = FocusChat
+		return
+	}
+	m.sessions.current = sess.ID
+	for i := range m.sessions.list.Sessions {
+		m.sessions.list.Sessions[i].Active = m.sessions.list.Sessions[i].ID == sess.ID
+	}
+	m.messages = nil
+	m.chars = 0
+	m.textarea.Reset()
+	m.statusText = "Switched to " + sess.Name
+	m.focus = FocusChat
+	m.dirty = true
+}
+
+func (m *Model) selectModel() {
+	idx := m.models.list.SelectedIdx
+	if idx >= 0 && idx < len(m.models.list.Models) {
+		m.modelName = m.models.list.Models[idx]
+		m.textarea.Reset()
+		m.textarea.SetValue("/model " + m.modelName)
+		m.statusText = "Model: " + m.modelName
+		m.focus = FocusChat
+	}
+}
+
 func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 	if m.promptRunning {
 		return m, nil
@@ -241,23 +356,16 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if text == "/help" {
-		m.textarea.Reset()
-		m.showCommands = true
-		return m, nil
-	}
-
-	if text == "/models" {
-		m.textarea.Reset()
-		m.textarea.SetValue("/model ")
-		m.textarea.Focus()
-		return m, nil
-	}
-
-	if text == "/sessions" {
-		m.textarea.Reset()
-		m.statusText = "Sessions: not yet implemented"
-		return m, nil
+	if strings.HasPrefix(text, "/") {
+		matches := component.MatchingSlashCommands(text)
+		cmd := component.SelectCommandName(matches, text)
+		if cmd == nil && len(matches) == 1 {
+			cmd = component.SelectCommandIndex(matches, 0)
+		}
+		if cmd != nil {
+			m.textarea.Reset()
+			return m, m.executeSlashCommand(cmd.Command)
+		}
 	}
 
 	m.textarea.Reset()
@@ -273,4 +381,16 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 	m.changeLog.Info("prompt sent", "text_length", len(text))
 
 	return m, sendInput(m.inputCh, client.InputCommand{Type: client.CmdPrompt, Text: text})
+}
+
+func (m *Model) executeSlashCommand(cmd string) tea.Cmd {
+	switch cmd {
+	case "/new":
+		return sendInput(m.inputCh, client.InputCommand{Type: client.CmdNewSession})
+	case "/models":
+		m.focus = FocusModels
+	case "/sessions":
+		m.focus = FocusSessions
+	}
+	return nil
 }

@@ -34,13 +34,6 @@ func loadProviders() (*agent.Config, string, error) {
 	return cfg, path, nil
 }
 
-func maskKey(key string) string {
-	if len(key) <= 8 {
-		return "***"
-	}
-	return key[:4] + "..." + key[len(key)-4:]
-}
-
 func resolveProvider(cfg *agent.Config, target string) *agent.Provider {
 	for i := range cfg.Providers {
 		if cfg.Providers[i].Name == target {
@@ -172,7 +165,7 @@ func providerPicker(cfg *agent.Config, title string) *agent.Provider {
 		opts[i] = huh.NewOption(p.Name, p.Name)
 	}
 	var name string
-	huh.NewSelect[string]().
+	_ = huh.NewSelect[string]().
 		Title(title).
 		Options(opts...).
 		Value(&name).
@@ -265,15 +258,15 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 			if ed == nil {
 				continue
 			}
-			huh.NewInput().
+			_ = huh.NewInput().
 				Title("Name").
 				Value(&ed.Name).
 				Run()
-			huh.NewInput().
+			_ = huh.NewInput().
 				Title("API Base URL").
 				Value(&ed.APIBase).
 				Run()
-			huh.NewInput().
+			_ = huh.NewInput().
 				Title("API Key").
 				EchoMode(huh.EchoModePassword).
 				Value(&ed.APIKey).
@@ -283,7 +276,7 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 			if err != nil {
 				fmt.Printf("  Warning: could not fetch models (%v)\n", err)
 				var modelsStr string
-				huh.NewInput().
+				_ = huh.NewInput().
 					Title("Models (comma-separated)").
 					Value(&modelsStr).
 					Run()
@@ -299,7 +292,7 @@ func providerConfigScreen(path string, cfg *agent.Config) error {
 					modelOpts[i] = huh.NewOption(m.ID, m.ID)
 				}
 				var selected []string
-				huh.NewMultiSelect[string]().
+				_ = huh.NewMultiSelect[string]().
 					Title("Select models (space to toggle, enter to confirm)").
 					Options(modelOpts...).
 					Value(&selected).
