@@ -91,7 +91,7 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 	modelName := "unknown"
 	if p, err := agent.ConfigPath(); err == nil {
 		if cfg, err := agent.LoadConfig(p); err == nil {
-			modelName = cfg.Model
+			modelName = cfg.ActiveModel
 		}
 	}
 

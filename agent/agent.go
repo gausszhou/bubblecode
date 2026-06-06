@@ -74,7 +74,7 @@ Working directory: %s`, cwd)
 		conversation: NewConversation(systemPrompt),
 		executor:     NewToolExecutor(cwd),
 		cwd:          cwd,
-		model:        a.cfg.Model,
+		model:        a.cfg.ActiveModel,
 	}
 
 	a.mu.Lock()
@@ -110,7 +110,8 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 
 	a.logger.Info("prompt received", "session_id", sid, "text_length", len(promptText))
 
-	if a.cfg.APIKey == "" {
+	p := a.cfg.GetActiveProvider()
+	if p == nil || p.APIKey == "" {
 		errMsg := "API key not configured. Set BUBBLECODE_API_KEY env var or create ~/.config/bubblecode/config.json"
 		a.sendText(ctx, params.SessionId, errMsg)
 		return acp.PromptResponse{}, nil
@@ -130,13 +131,32 @@ func (a *LLMAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.Pr
 		return acp.PromptResponse{}, nil
 	}
 
-	llm := NewLLMClient(&Config{
-		APIBase:     a.cfg.APIBase,
-		APIKey:      a.cfg.APIKey,
-		Model:       ss.model,
-		MaxTokens:   a.cfg.MaxTokens,
-		Temperature: a.cfg.Temperature,
-	})
+	if isProviderCommand(promptText) {
+		providerName := extractProviderName(promptText)
+		if providerName != "" {
+			configPath, cfgErr := ConfigPath()
+			if cfgErr != nil {
+				a.logger.Error("get config path", "error", cfgErr)
+			} else {
+				if a.cfg.SwitchProvider(providerName) {
+					if saveErr := SaveConfig(configPath, a.cfg); saveErr == nil {
+						a.logger.Info("provider switched", "provider", providerName, "model", a.cfg.ActiveModel)
+						if err := a.sendText(ctx, params.SessionId, fmt.Sprintf("Switched to provider: %s (model: %s)", providerName, a.cfg.ActiveModel)); err != nil {
+							a.logger.Error("send provider switch text failed", "error", err)
+						}
+					}
+				} else {
+					if err := a.sendText(ctx, params.SessionId, fmt.Sprintf("Provider '%s' not found in config", providerName)); err != nil {
+						a.logger.Error("send provider not found text failed", "error", err)
+					}
+				}
+			}
+		}
+		return acp.PromptResponse{}, nil
+	}
+
+	p = a.cfg.GetActiveProvider()
+	llm := NewLLMClient(p.APIBase, p.APIKey, ss.model, a.cfg.MaxTokens, a.cfg.Temperature)
 	tools := DefaultTools()
 
 	for {
@@ -276,6 +296,14 @@ func isModelCommand(text string) bool {
 
 func extractModelName(text string) string {
 	return text[7:]
+}
+
+func isProviderCommand(text string) bool {
+	return len(text) > 10 && text[:10] == "/provider "
+}
+
+func extractProviderName(text string) string {
+	return text[10:]
 }
 
 func extractText(blocks []acp.ContentBlock) string {
