@@ -41,7 +41,7 @@ func modelsListCmd() *cobra.Command {
 					n++
 					mm := m
 					if p.Name == cfg.ActiveProvider && m == cfg.ActiveModel {
-						mm += " *"
+						mm += " [default]"
 					}
 					fmt.Printf("%2d. %s/%s\n", n, p.Name, mm)
 				}
