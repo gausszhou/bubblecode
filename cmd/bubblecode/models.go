@@ -45,6 +45,9 @@ func modelsListCmd() *cobra.Command {
 					fmt.Printf("%2d. %s/%s\n", n, p.Name, mm)
 				}
 			}
+			if n == 0 {
+				fmt.Println("No models configured. Use 'bubblecode providers add' or 'bubblecode providers config'.")
+			}
 			return nil
 		},
 	}

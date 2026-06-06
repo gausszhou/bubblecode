@@ -2,6 +2,7 @@ package bubblecode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,6 +30,8 @@ var presets = []preset{
 	{name: "deepseek", base: "https://api.deepseek.com/v1"},
 }
 
+var ErrAborted = errors.New("aborted")
+
 func uniqueName(base string, existing []string) string {
 	if !slices.Contains(existing, base) {
 		return base
@@ -45,11 +48,12 @@ func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
 	var name, apiBase string
 	var choice string
 
-	presetOpts := make([]huh.Option[string], 0, len(presets)+1)
+	presetOpts := make([]huh.Option[string], 0, len(presets)+2)
 	for _, pr := range presets {
 		presetOpts = append(presetOpts, huh.NewOption(pr.name, pr.name))
 	}
 	presetOpts = append(presetOpts, huh.NewOption("custom", "__custom__"))
+	presetOpts = append(presetOpts, huh.NewOption("quit", "__quit__"))
 
 	err := huh.NewSelect[string]().
 		Title("Select preset provider").
@@ -58,6 +62,10 @@ func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
 		Run()
 	if err != nil {
 		return agent.Provider{}, err
+	}
+
+	if choice == "__quit__" {
+		return agent.Provider{}, ErrAborted
 	}
 
 	if choice != "__custom__" {
@@ -210,6 +218,9 @@ func ensureConfig() (*agent.Config, error) {
 			existingNames = append(existingNames, pr.Name)
 		}
 		p, err := promptProvider(i+1, existingNames...)
+		if errors.Is(err, ErrAborted) {
+			break
+		}
 		if err != nil {
 			return nil, err
 		}
