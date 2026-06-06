@@ -2,13 +2,13 @@ package bubblecode
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/spf13/cobra"
 
 	"github.com/gausszhou/bubblecode/agent"
+	"github.com/gausszhou/bubblecode/logger"
 )
 
 var configPath string
@@ -29,7 +29,10 @@ func acpCmd() *cobra.Command {
 }
 
 func runACPServer(cmd *cobra.Command) error {
-	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log, err := logger.New(logger.ComponentAgent, logger.DefaultConfig())
+	if err != nil {
+		return fmt.Errorf("logger: %w", err)
+	}
 
 	path := configPath
 	if path == "" {
@@ -42,23 +45,23 @@ func runACPServer(cmd *cobra.Command) error {
 
 	cfg, err := agent.LoadConfig(path)
 	if err != nil {
-		logger.Warn("config not loaded, using defaults", "error", err)
+		log.Warn("config not loaded, using defaults", "error", err)
 		cfg = agent.DefaultConfig()
 	}
 
 	if cfg.APIKey == "" {
-		logger.Warn("API key not configured, agent will return errors until configured",
+		log.Warn("API key not configured, agent will return errors until configured",
 			"hint", "set BUBBLECODE_API_KEY env var or create config at "+path)
 	}
 
-	agentInstance := agent.NewLLMAgent(cfg, logger)
+	agentInstance := agent.NewLLMAgent(cfg, log)
 	conn := acp.NewAgentSideConnection(agentInstance, os.Stdout, os.Stdin)
 	agentInstance.SetAgentConnection(conn)
 
-	logger.Info("ACP server started", "model", cfg.Model)
+	log.Info("ACP server started", "model", cfg.Model)
 
 	<-conn.Done()
-	logger.Info("ACP server stopped")
+	log.Info("ACP server stopped")
 
 	return nil
 }

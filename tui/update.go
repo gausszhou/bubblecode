@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
@@ -25,9 +24,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyReleaseMsg:
 		return m, nil
-
-	case tea.MouseMsg:
-		return m.handleMouse(msg)
 
 	case drainEventsMsg:
 		m.drainEvents()
@@ -121,88 +117,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	t0 := time.Now()
-
-	switch e := msg.(type) {
-	case tea.MouseWheelMsg:
-		switch e.Button {
-		case tea.MouseWheelUp:
-			m.chatViewport.ScrollUp(3)
-			m.needAutoScroll = false
-		case tea.MouseWheelDown:
-			m.chatViewport.ScrollDown(3)
-			if m.chatViewport.AtBottom() {
-				m.needAutoScroll = true
-			}
-		}
-
-	case tea.MouseClickMsg:
-		mouse := e.Mouse()
-		if mouse.Button == tea.MouseLeft && m.isScrollbarX(mouse.X) && m.isViewportY(mouse.Y) {
-			m.dragging = true
-			m.setScrollFromY(mouse.Y)
-			m.needAutoScroll = m.chatViewport.AtBottom()
-		} else if mouse.Button == tea.MouseLeft && m.isViewportY(mouse.Y) && mouse.X < m.chatViewport.Width() {
-			m.selecting = true
-			contentLine := m.chatViewport.YOffset() + mouse.Y
-			m.selection = &Selection{
-				StartLine: contentLine,
-				StartCol:  mouse.X,
-				EndLine:   contentLine,
-				EndCol:    mouse.X,
-			}
-			m.dirty = true
-		}
-
-	case tea.MouseReleaseMsg:
-		if m.selecting && m.selection != nil {
-			text := m.getSelectedText()
-			m.copyToClipboard(text)
-			m.selecting = false
-			m.selection = nil
-			m.dirty = true
-		}
-		m.dragging = false
-
-	case tea.MouseMotionMsg:
-		mouse := e.Mouse()
-		if m.dragging {
-			if m.isScrollbarX(mouse.X) && m.isViewportY(mouse.Y) {
-				m.setScrollFromY(mouse.Y)
-				m.needAutoScroll = m.chatViewport.AtBottom()
-			}
-		}
-		if m.selecting && m.selection != nil {
-			if mouse.X < 0 {
-				mouse.X = 0
-			}
-			if mouse.X >= m.chatViewport.Width() {
-				mouse.X = m.chatViewport.Width() - 1
-			}
-			y := mouse.Y
-			if y < 0 {
-				y = 0
-			}
-			if y >= m.chatViewport.Height() {
-				y = m.chatViewport.Height() - 1
-			}
-			m.selection.EndLine = m.chatViewport.YOffset() + y
-			m.selection.EndCol = mouse.X
-			m.dirty = true
-		}
-	}
-
-	if d := time.Since(t0); d > 50*time.Millisecond {
-		m.changeLog.Info("handle mouse", "ms", d.Milliseconds())
-	}
-	return m, nil
-}
-
 func (m *Model) handleOutputEvent(ev client.OutputEvent) {
-	m.selecting = false
-	m.selection = nil
-
 	if ev.Update != nil {
 		m.processUpdate(ev.Update.Update)
 		m.dirty = true
@@ -307,8 +222,6 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.selecting = false
-	m.selection = nil
 	m.textarea.Reset()
 	m.messages = append(m.messages, component.Message{Role: roleUser, Content: text})
 	m.chars += len(text)

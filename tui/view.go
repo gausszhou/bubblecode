@@ -74,11 +74,7 @@ func (m *Model) renderMessages() string {
 		}
 		sb.WriteString(m.messages[i].Render(w))
 	}
-	content := sb.String()
-	if m.selecting {
-		content = m.applySelectionHighlight(content)
-	}
-	return content
+	return sb.String()
 }
 
 func comma(n int) string {
