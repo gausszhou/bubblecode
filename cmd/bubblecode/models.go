@@ -2,6 +2,7 @@ package bubblecode
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -50,10 +51,13 @@ func modelsSwitchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			model := args[0]
 			p := cfg.GetActiveProvider()
 			if p == nil {
 				return fmt.Errorf("no active provider")
+			}
+			model := args[0]
+			if idx, err := strconv.Atoi(model); err == nil && idx >= 1 && idx <= len(p.Models) {
+				model = p.Models[idx-1]
 			}
 			cfg.ActiveModel = model
 			if err := agent.SaveConfig(path, cfg); err != nil {
