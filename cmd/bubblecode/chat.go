@@ -1,21 +1,21 @@
 package bubblecode
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
-	"strconv"
+	"slices"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	tea "charm.land/bubbletea/v2"
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/spf13/cobra"
 
 	"github.com/gausszhou/bubblecode/agent"
 	"github.com/gausszhou/bubblecode/client"
+	"github.com/gausszhou/bubblecode/logger"
 	"github.com/gausszhou/bubblecode/tui"
 )
 
@@ -30,118 +30,150 @@ var presets = []preset{
 }
 
 func uniqueName(base string, existing []string) string {
-	if !contains(existing, base) {
+	if !slices.Contains(existing, base) {
 		return base
 	}
 	for i := 2; ; i++ {
 		candidate := fmt.Sprintf("%s-%d", base, i)
-		if !contains(existing, candidate) {
+		if !slices.Contains(existing, candidate) {
 			return candidate
 		}
 	}
 }
 
-func contains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
+func promptProvider(num int, existingNames ...string) (agent.Provider, error) {
+	var name, apiBase string
+	var choice string
+
+	presetOpts := make([]huh.Option[string], 0, len(presets)+1)
+	for _, pr := range presets {
+		presetOpts = append(presetOpts, huh.NewOption(pr.name, pr.name))
+	}
+	presetOpts = append(presetOpts, huh.NewOption("custom", "__custom__"))
+
+	err := huh.NewSelect[string]().
+		Title("Select preset provider").
+		Options(presetOpts...).
+		Value(&choice).
+		Run()
+	if err != nil {
+		return agent.Provider{}, err
+	}
+
+	if choice != "__custom__" {
+		for _, pr := range presets {
+			if pr.name == choice {
+				name = pr.name
+				apiBase = pr.base
+				break
+			}
 		}
-	}
-	return false
-}
-
-func promptProvider(reader *bufio.Reader, num int, existingNames ...string) (agent.Provider, error) {
-	var p agent.Provider
-
-	fmt.Println("  Select preset provider:")
-	for i, pr := range presets {
-		fmt.Printf("    %d) %s\n", i+1, pr.name)
-	}
-	fmt.Printf("    %d) custom\n", len(presets)+1)
-	fmt.Printf("  Choice [%d]: ", len(presets)+1)
-	choice, _ := reader.ReadString('\n')
-	choice = strings.TrimSpace(choice)
-
-	idx, err := strconv.Atoi(choice)
-	if err == nil && idx >= 1 && idx <= len(presets) {
-		pr := presets[idx-1]
-		p.Name = pr.name
-		p.APIBase = pr.base
 	} else {
-		fmt.Printf("  Name [provider-%d]: ", num)
-		name, _ := reader.ReadString('\n')
-		name = strings.TrimSpace(name)
-		if name == "" {
-			name = fmt.Sprintf("provider-%d", num)
+		defaultName := fmt.Sprintf("provider-%d", num)
+		err = huh.NewInput().
+			Title("Provider name").
+			Value(&name).
+			Placeholder(defaultName).
+			Run()
+		if err != nil {
+			return agent.Provider{}, err
 		}
-		p.Name = name
+		if name == "" {
+			name = defaultName
+		}
 
 		defaultBase := "https://api.deepseek.com/v1"
-		fmt.Printf("  API Base URL [%s]: ", defaultBase)
-		base, _ := reader.ReadString('\n')
-		base = strings.TrimSpace(base)
-		if base == "" {
-			base = defaultBase
+		err = huh.NewInput().
+			Title("API Base URL").
+			Value(&apiBase).
+			Placeholder(defaultBase).
+			Run()
+		if err != nil {
+			return agent.Provider{}, err
 		}
-		p.APIBase = base
+		if apiBase == "" {
+			apiBase = defaultBase
+		}
 	}
 
-	p.Name = uniqueName(p.Name, existingNames)
-	fmt.Printf("    Name:     %s\n", p.Name)
-	fmt.Printf("    API Base: %s\n", p.APIBase)
+	name = uniqueName(name, existingNames)
 
-	for {
-		fmt.Printf("  API Key: ")
-		key, _ := reader.ReadString('\n')
-		key = strings.TrimSpace(key)
-		if key != "" {
-			p.APIKey = key
-			break
-		}
-		fmt.Println("    API Key cannot be empty.")
+	var apiKey string
+	err = huh.NewInput().
+		Title(fmt.Sprintf("API Key for %s", name)).
+		EchoMode(huh.EchoModePassword).
+		Validate(func(s string) error {
+			if s == "" {
+				return fmt.Errorf("API Key cannot be empty")
+			}
+			return nil
+		}).
+		Value(&apiKey).
+		Run()
+	if err != nil {
+		return agent.Provider{}, err
 	}
 
 	fmt.Println("  Fetching available models...")
-	apiModels, err := agent.FetchModels(p.APIBase, p.APIKey)
-	if err != nil {
-		fmt.Printf("  Warning: could not fetch models (%v)\n", err)
-		fmt.Printf("  Models (comma-separated) [deepseek-chat]: ")
-		modelsStr, _ := reader.ReadString('\n')
-		modelsStr = strings.TrimSpace(modelsStr)
-		if modelsStr == "" {
-			p.Models = []string{"deepseek-chat"}
+	apiModels, fetchErr := agent.FetchModels(apiBase, apiKey)
+
+	var models []string
+	if fetchErr != nil {
+		fmt.Printf("  Warning: could not fetch models (%v)\n", fetchErr)
+		var modelsInput string
+		err = huh.NewInput().
+			Title("Models (comma-separated)").
+			Placeholder("deepseek-chat").
+			Value(&modelsInput).
+			Run()
+		if err != nil {
+			return agent.Provider{}, err
+		}
+		if modelsInput == "" {
+			models = []string{"deepseek-chat"}
 		} else {
-			for _, m := range strings.Split(modelsStr, ",") {
-				m = strings.TrimSpace(m)
-				if m != "" {
-					p.Models = append(p.Models, m)
-				}
+			for _, m := range splitComma(modelsInput) {
+				models = append(models, m)
 			}
 		}
 	} else {
+		modelOpts := make([]huh.Option[string], len(apiModels))
 		for i, m := range apiModels {
-			fmt.Printf("    %d. %s\n", i+1, m)
+			modelOpts[i] = huh.NewOption(m, m)
 		}
-		fmt.Printf("  Select models by number (comma-separated, Enter for all): ")
-		sel, _ := reader.ReadString('\n')
-		sel = strings.TrimSpace(sel)
-		if sel == "" {
-			p.Models = apiModels
+		var selected []string
+		err = huh.NewMultiSelect[string]().
+			Title("Select models (space to toggle, enter to confirm)").
+			Options(modelOpts...).
+			Value(&selected).
+			Run()
+		if err != nil {
+			return agent.Provider{}, err
+		}
+		if len(selected) == 0 {
+			models = apiModels
 		} else {
-			for _, s := range strings.Split(sel, ",") {
-				s = strings.TrimSpace(s)
-				idx, err := strconv.Atoi(s)
-				if err == nil && idx >= 1 && idx <= len(apiModels) {
-					p.Models = append(p.Models, apiModels[idx-1])
-				}
-			}
-			if len(p.Models) == 0 {
-				p.Models = apiModels
-			}
+			models = selected
 		}
 	}
 
-	return p, nil
+	return agent.Provider{
+		Name:    name,
+		APIBase: apiBase,
+		APIKey:  apiKey,
+		Models:  models,
+	}, nil
+}
+
+func splitComma(s string) []string {
+	var result []string
+	for _, m := range strings.Split(s, ",") {
+		m = strings.TrimSpace(m)
+		if m != "" {
+			result = append(result, m)
+		}
+	}
+	return result
 }
 
 func ensureConfig() (*agent.Config, error) {
@@ -171,28 +203,29 @@ func ensureConfig() (*agent.Config, error) {
 	fmt.Println("No API configuration found. Please add at least one provider.")
 	fmt.Println()
 
-	reader := bufio.NewReader(os.Stdin)
-
 	var providers []agent.Provider
 	for i := 0; ; i++ {
-		fmt.Printf("Provider %d:\n", i+1)
 		var existingNames []string
 		for _, pr := range providers {
 			existingNames = append(existingNames, pr.Name)
 		}
-		p, err := promptProvider(reader, i+1, existingNames...)
+		p, err := promptProvider(i+1, existingNames...)
 		if err != nil {
 			return nil, err
 		}
 		providers = append(providers, p)
 
-		fmt.Print("Add another provider? [y/N]: ")
-		more, _ := reader.ReadString('\n')
-		more = strings.TrimSpace(more)
-		if strings.ToLower(more) != "y" {
+		var more bool
+		err = huh.NewConfirm().
+			Title("Add another provider?").
+			Value(&more).
+			Run()
+		if err != nil {
+			return nil, err
+		}
+		if !more {
 			break
 		}
-		fmt.Println()
 	}
 
 	cfg = &agent.Config{
@@ -217,7 +250,10 @@ func runChat(cmd *cobra.Command) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log, err := logger.New(logger.ComponentClient, logger.DefaultConfig())
+	if err != nil {
+		return fmt.Errorf("logger: %w", err)
+	}
 
 	if _, err := ensureConfig(); err != nil {
 		return fmt.Errorf("config setup failed: %w", err)
@@ -233,7 +269,7 @@ func runChat(cmd *cobra.Command) error {
 
 	acpClient := client.NewACPClient(events)
 
-	conn, err := client.NewConnection(agentCmd, acpClient, logger)
+	conn, err := client.NewConnection(agentCmd, acpClient, log)
 	if err != nil {
 		return fmt.Errorf("connection failed: %w", err)
 	}
@@ -241,14 +277,17 @@ func runChat(cmd *cobra.Command) error {
 	initResp, err := conn.Initialize(ctx, acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
-			Fs:       acpsdk.FileSystemCapabilities{ReadTextFile: true, WriteTextFile: true},
+			Fs: acpsdk.FileSystemCapabilities{
+				ReadTextFile:  true,
+				WriteTextFile: true,
+			},
 			Terminal: true,
 		},
 	})
 	if err != nil {
 		return fmt.Errorf("initialize failed: %w", err)
 	}
-	logger.Info("agent initialized", "protocol_version", initResp.ProtocolVersion)
+	log.Info("agent initialized", "protocol_version", initResp.ProtocolVersion)
 
 	newSess, err := conn.NewSession(ctx, acpsdk.NewSessionRequest{
 		Cwd:        client.MustCwd(),
@@ -257,14 +296,14 @@ func runChat(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("new session failed: %w", err)
 	}
-	logger.Info("session created", "session_id", newSess.SessionId)
+	log.Info("session created", "session_id", newSess.SessionId)
 
 	inputCh := make(chan client.InputCommand, 1)
 
 	cl := client.NewClient(inputCh, conn.ClientConn(), events)
 	go cl.Run(ctx, newSess.SessionId)
 
-	model := tui.NewModel(logger, agentCmd, string(newSess.SessionId), ctx, cancel, inputCh, events)
+	model := tui.NewModel(log, agentCmd, string(newSess.SessionId), ctx, cancel, inputCh, events)
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return err
