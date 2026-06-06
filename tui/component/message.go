@@ -1,6 +1,7 @@
 package component
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -48,9 +49,9 @@ func (m *Message) Render(w int) string {
 		output = RenderMarkdown(content, mdWidth, "")
 	} else {
 		var (
-			borderColor = theme.ThemeBorder
-			bgColor     = theme.ThemeSurface
-			contentFg   = theme.ThemeText
+			borderColor color.Color
+			bgColor     color.Color
+			contentFg   color.Color
 		)
 
 		switch m.Role {

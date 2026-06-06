@@ -31,6 +31,29 @@ const (
 	rolePlan    = "plan"
 )
 
+type Focus int
+
+const (
+	FocusChat Focus = iota
+	FocusCommands
+	FocusSessions
+	FocusModels
+)
+
+type commandsState struct {
+	selected int
+}
+
+type sessionsState struct {
+	list    component.SessionList
+	nextID  int
+	current string
+}
+
+type modelsState struct {
+	list component.ModelsList
+}
+
 type Model struct {
 	logger    *slog.Logger
 	changeLog *slog.Logger
@@ -56,7 +79,11 @@ type Model struct {
 	statusText    string
 	spinner       component.Loading
 
-	showCommands bool
+	focus Focus
+
+	sessions sessionsState
+	commands commandsState
+	models   modelsState
 
 	pendingEvents []client.OutputEvent
 	mu            sync.Mutex
@@ -66,15 +93,6 @@ type Model struct {
 	needAutoScroll bool
 
 	modelName string
-}
-
-func (m *Model) isMouseInViewport(y int) bool {
-	return y >= 0 && y < m.chatViewport.Height()
-}
-
-func (m *Model) isMouseInTextarea(y int) bool {
-	taStart := m.chatViewport.Height() + 1
-	return y >= taStart && y < taStart+layout.InputHeight
 }
 
 func newChangeLog() *slog.Logger {
@@ -104,6 +122,22 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 		}
 	}
 
+	sessList := component.NewSessionList("Sessions")
+	sessList.Sessions = []component.SessionItem{
+		{ID: "1", Name: "Session 1", Active: true},
+	}
+
+	mdlList := component.NewModelsList()
+	if p, err := agent.ConfigPath(); err == nil {
+		if cfg, err := agent.LoadConfig(p); err == nil {
+			if prov := cfg.GetDefaultProvider(); prov != nil {
+				for _, m := range prov.Models {
+					mdlList.Models = append(mdlList.Models, m.ID)
+				}
+			}
+		}
+	}
+
 	m := &Model{
 		logger:       logger,
 		changeLog:    newChangeLog(),
@@ -119,6 +153,9 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 		statusText:   "Ready",
 		spinner:      component.NewLoading(theme.LoadingSpinner()),
 		modelName:    modelName,
+		focus:        FocusChat,
+		sessions:     sessionsState{list: sessList, nextID: 2, current: "1"},
+		models:       modelsState{list: mdlList},
 	}
 	m.changeLog.Info("model created", "status", "ready")
 	return m

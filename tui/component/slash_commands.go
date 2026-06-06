@@ -14,11 +14,9 @@ type SlashCommand struct {
 }
 
 var SlashCommands = []SlashCommand{
-	{Command: "/help", Desc: "Show available commands"},
+	{Command: "/new", Desc: "Create new session"},
 	{Command: "/models", Desc: "Switch current model"},
 	{Command: "/sessions", Desc: "Switch current session"},
-	{Command: "/model <name>", Desc: "Switch agent model"},
-	{Command: "/provider <name>", Desc: "Switch provider"},
 }
 
 func MatchingSlashCommands(input string) []SlashCommand {

@@ -34,9 +34,6 @@ func TestOutputEvent(t *testing.T) {
 func TestNewACPClient(t *testing.T) {
 	events := make(chan OutputEvent, 100)
 	c := NewACPClient(events)
-	if c == nil {
-		t.Error("Expected non-nil ACPClient")
-	}
 	if c.Events != events {
 		t.Error("Expected Events channel to match")
 	}

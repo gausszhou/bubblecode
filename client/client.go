@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"sync/atomic"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -26,6 +27,7 @@ type InputCommand struct {
 const (
 	CmdPrompt = iota
 	CmdInterrupt
+	CmdNewSession
 )
 
 type OutputEvent struct {
@@ -89,9 +91,10 @@ func (c *ACPClient) WaitForTerminalExit(ctx context.Context, params acp.WaitForT
 
 // PromptRunner sends prompts and manages the prompt lifecycle.
 type PromptRunner struct {
-	Input  <-chan InputCommand
-	conn   *acp.ClientSideConnection
-	events chan<- OutputEvent
+	Input     <-chan InputCommand
+	conn      *acp.ClientSideConnection
+	events    chan<- OutputEvent
+	sessionId atomic.Value // stores acp.SessionId
 }
 
 func NewClient(input <-chan InputCommand, conn *acp.ClientSideConnection, events chan<- OutputEvent) *PromptRunner {
@@ -99,6 +102,7 @@ func NewClient(input <-chan InputCommand, conn *acp.ClientSideConnection, events
 }
 
 func (c *PromptRunner) Run(ctx context.Context, sessionId acp.SessionId) {
+	c.sessionId.Store(sessionId)
 	for {
 		select {
 		case cmd, ok := <-c.Input:
@@ -107,14 +111,27 @@ func (c *PromptRunner) Run(ctx context.Context, sessionId acp.SessionId) {
 			}
 			switch cmd.Type {
 			case CmdPrompt:
+				sid := c.sessionId.Load().(acp.SessionId)
 				_, err := c.conn.Prompt(ctx, acp.PromptRequest{
-					SessionId: sessionId,
+					SessionId: sid,
 					Prompt:    []acp.ContentBlock{acp.TextBlock(cmd.Text)},
 				})
 				if err != nil {
 					c.events <- OutputEvent{Kind: "error", Error: err}
 				} else {
 					c.events <- OutputEvent{Kind: "done"}
+				}
+
+			case CmdNewSession:
+				resp, err := c.conn.NewSession(ctx, acp.NewSessionRequest{
+					Cwd:        MustCwd(),
+					McpServers: []acp.McpServer{},
+				})
+				if err != nil {
+					c.events <- OutputEvent{Kind: "error", Error: err}
+				} else {
+					c.sessionId.Store(resp.SessionId)
+					c.events <- OutputEvent{Kind: "session_created"}
 				}
 			}
 		case <-ctx.Done():

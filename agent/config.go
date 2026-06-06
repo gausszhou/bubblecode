@@ -123,9 +123,7 @@ func LoadConfig(path string) (*Config, error) {
 			MaxTokens:       maxTokens,
 		}
 
-		if saveErr := SaveConfig(path, cfg); saveErr == nil {
-			// migrated
-		}
+		_ = SaveConfig(path, cfg)
 
 		return cfg, nil
 	}
