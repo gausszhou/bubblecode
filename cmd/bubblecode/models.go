@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
 	"github.com/gausszhou/bubblecode/agent"
@@ -12,7 +13,17 @@ import (
 func modelsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "models",
-		Short: "Show or switch configured models",
+		Short: "Manage configured models",
+	}
+	cmd.AddCommand(modelsListCmd())
+	cmd.AddCommand(modelsSwitchCmd())
+	return cmd
+}
+
+func modelsListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all configured models",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := agent.ConfigPath()
 			if err != nil {
@@ -37,15 +48,13 @@ func modelsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.AddCommand(modelsSwitchCmd())
-	return cmd
 }
 
 func modelsSwitchCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "switch <model>",
+		Use:   "switch [model]",
 		Short: "Switch active model for current provider",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, path, err := loadProviders()
 			if err != nil {
@@ -55,9 +64,28 @@ func modelsSwitchCmd() *cobra.Command {
 			if p == nil {
 				return fmt.Errorf("no active provider")
 			}
-			model := args[0]
-			if idx, err := strconv.Atoi(model); err == nil && idx >= 1 && idx <= len(p.Models) {
-				model = p.Models[idx-1]
+			model := ""
+			if len(args) > 0 {
+				model = args[0]
+				if idx, err := strconv.Atoi(model); err == nil && idx >= 1 && idx <= len(p.Models) {
+					model = p.Models[idx-1]
+				}
+			} else if len(p.Models) > 0 {
+				opts := make([]huh.Option[string], len(p.Models))
+				for i, m := range p.Models {
+					opts[i] = huh.NewOption(m, m)
+				}
+				err := huh.NewSelect[string]().
+					Title("Select model").
+					Options(opts...).
+					Value(&model).
+					Run()
+				if err != nil {
+					return err
+				}
+			}
+			if model == "" {
+				return fmt.Errorf("no model specified and none available")
 			}
 			cfg.ActiveModel = model
 			if err := agent.SaveConfig(path, cfg); err != nil {
