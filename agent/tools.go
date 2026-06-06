@@ -63,7 +63,7 @@ func DefaultTools() []ToolDefinition {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "bash",
-				Description: "Execute a shell command and get its output",
+				Description: "Execute a shell command (30s timeout, use sh -c)",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -120,11 +120,17 @@ func (e *ToolExecutor) Execute(ctx context.Context, name string, args map[string
 	}
 }
 
-func (e *ToolExecutor) resolvePath(path string) string {
-	if filepath.IsAbs(path) {
-		return path
+func (e *ToolExecutor) resolvePath(path string) (string, error) {
+	base := filepath.Clean(e.cwd)
+	resolved := path
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(base, resolved)
 	}
-	return filepath.Join(e.cwd, path)
+	cleaned := filepath.Clean(resolved)
+	if !strings.HasPrefix(cleaned, base+string(filepath.Separator)) && cleaned != base {
+		return "", fmt.Errorf("path %q escapes working directory", path)
+	}
+	return cleaned, nil
 }
 
 func (e *ToolExecutor) readFile(args map[string]any) ToolResult {
@@ -132,7 +138,10 @@ func (e *ToolExecutor) readFile(args map[string]any) ToolResult {
 	if path == "" {
 		return ToolResult{Error: "file_path is required"}
 	}
-	path = e.resolvePath(path)
+	path, err := e.resolvePath(path)
+	if err != nil {
+		return ToolResult{Error: err.Error()}
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -148,7 +157,10 @@ func (e *ToolExecutor) writeFile(args map[string]any) ToolResult {
 	if path == "" {
 		return ToolResult{Error: "file_path is required"}
 	}
-	path = e.resolvePath(path)
+	path, err := e.resolvePath(path)
+	if err != nil {
+		return ToolResult{Error: err.Error()}
+	}
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -176,7 +188,7 @@ func (e *ToolExecutor) bash(ctx context.Context, args map[string]any) ToolResult
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = e.cwd
 
 	var stdout, stderr bytes.Buffer
@@ -210,11 +222,12 @@ func (e *ToolExecutor) glob(args map[string]any) ToolResult {
 		return ToolResult{Error: "pattern is required"}
 	}
 
-	if !filepath.IsAbs(pattern) {
-		pattern = filepath.Join(e.cwd, pattern)
+	resolved, err := e.resolvePath(pattern)
+	if err != nil {
+		return ToolResult{Error: err.Error()}
 	}
 
-	matches, err := filepath.Glob(pattern)
+	matches, err := filepath.Glob(resolved)
 	if err != nil {
 		return ToolResult{Error: fmt.Sprintf("glob: %s", err)}
 	}
@@ -223,5 +236,19 @@ func (e *ToolExecutor) glob(args map[string]any) ToolResult {
 		return ToolResult{Output: "no matches found"}
 	}
 
-	return ToolResult{Output: strings.Join(matches, "\n")}
+	// filter out matches that escape cwd
+	base := filepath.Clean(e.cwd)
+	var safe []string
+	for _, m := range matches {
+		cleaned := filepath.Clean(m)
+		if (strings.HasPrefix(cleaned, base+string(filepath.Separator)) || cleaned == base) && !strings.Contains(cleaned, "..") {
+			safe = append(safe, m)
+		}
+	}
+
+	if len(safe) == 0 {
+		return ToolResult{Output: "no matches found"}
+	}
+
+	return ToolResult{Output: strings.Join(safe, "\n")}
 }

@@ -20,14 +20,13 @@ type LLMClient struct {
 	httpClient *http.Client
 }
 
-func NewLLMClient(cfg *Config) *LLMClient {
-	base := strings.TrimRight(cfg.APIBase, "/")
+func NewLLMClient(apiBase, apiKey, model string, maxTokens int, temp float64) *LLMClient {
 	return &LLMClient{
-		apiBase:    base,
-		apiKey:     cfg.APIKey,
-		model:      cfg.Model,
-		maxTokens:  cfg.MaxTokens,
-		temp:       cfg.Temperature,
+		apiBase:    strings.TrimRight(apiBase, "/"),
+		apiKey:     apiKey,
+		model:      model,
+		maxTokens:  maxTokens,
+		temp:       temp,
 		httpClient: &http.Client{},
 	}
 }

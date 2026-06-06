@@ -68,6 +68,15 @@ type Model struct {
 	modelName string
 }
 
+func (m *Model) isMouseInViewport(y int) bool {
+	return y >= 0 && y < m.chatViewport.Height()
+}
+
+func (m *Model) isMouseInTextarea(y int) bool {
+	taStart := m.chatViewport.Height() + 1
+	return y >= taStart && y < taStart+layout.InputHeight
+}
+
 func newChangeLog() *slog.Logger {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -91,7 +100,7 @@ func NewModel(logger *slog.Logger, cmd *exec.Cmd, _ string, ctx context.Context,
 	modelName := "unknown"
 	if p, err := agent.ConfigPath(); err == nil {
 		if cfg, err := agent.LoadConfig(p); err == nil {
-			modelName = cfg.Model
+			modelName = cfg.DefaultModel
 		}
 	}
 

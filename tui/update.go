@@ -22,8 +22,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
-	case tea.KeyReleaseMsg:
-		return m, nil
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 
 	case drainEventsMsg:
 		m.drainEvents()
@@ -115,6 +115,25 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(msg)
 	return m, cmd
+}
+
+func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch e := msg.(type) {
+	case tea.MouseWheelMsg:
+		mouse := e.Mouse()
+		if mouse.Y >= m.chatViewport.Height() {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.chatViewport, cmd = m.chatViewport.Update(e)
+		if m.chatViewport.AtBottom() {
+			m.needAutoScroll = true
+		} else {
+			m.needAutoScroll = false
+		}
+		return m, cmd
+	}
+	return m, nil
 }
 
 func (m *Model) handleOutputEvent(ev client.OutputEvent) {
@@ -219,6 +238,25 @@ func (m *Model) sendPrompt() (tea.Model, tea.Cmd) {
 	}
 	text := m.textarea.Value()
 	if text == "" {
+		return m, nil
+	}
+
+	if text == "/help" {
+		m.textarea.Reset()
+		m.showCommands = true
+		return m, nil
+	}
+
+	if text == "/models" {
+		m.textarea.Reset()
+		m.textarea.SetValue("/model ")
+		m.textarea.Focus()
+		return m, nil
+	}
+
+	if text == "/sessions" {
+		m.textarea.Reset()
+		m.statusText = "Sessions: not yet implemented"
 		return m, nil
 	}
 

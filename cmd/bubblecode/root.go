@@ -13,8 +13,18 @@ var rootCmd = &cobra.Command{
 	Long: `A terminal user interface for interacting with AI agents via the ACP protocol.
 Built with Bubble Tea v2 and Lip Gloss v2.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runTUI(cmd)
+		return runChat(cmd)
 	},
+}
+
+func chatCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "chat",
+		Short: "Start the chat TUI (default)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runChat(cmd)
+		},
+	}
 }
 
 func Execute() {
@@ -25,5 +35,8 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.AddCommand(chatCmd())
 	rootCmd.AddCommand(acpCmd())
+	rootCmd.AddCommand(modelsCmd())
+	rootCmd.AddCommand(providersCmd())
 }
