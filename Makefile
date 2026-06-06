@@ -5,7 +5,8 @@ BIN_DIR=bin
 DIST_DIR=dist
 VERSION?=dev
 
-build: build-all
+build:
+	go build -ldflags="-s -w" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 test:
 	go test ./...
@@ -53,7 +54,12 @@ lint:
 	golangci-lint run ./...
 
 fmt:
-	go fmt ./...
+	@output=$$(go fmt ./...); \
+	if [ -n "$$output" ]; then \
+		echo "Unformatted files:"; \
+		echo "$$output"; \
+		exit 1; \
+	fi
 
 vet:
 	go vet ./...

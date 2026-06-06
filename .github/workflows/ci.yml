@@ -11,36 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Format
-        run: make fmt
-
-      - name: Vet
-        run: make vet
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: ./...
+      - run: make fmt
+      - run: make vet
+      - run: make lint
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Run tests
-        run: make test
+      - run: make test
 
   build:
     runs-on: ${{ matrix.os }}
@@ -49,11 +36,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Build
-        run: make build
+      - run: make build
